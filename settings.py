@@ -1,3 +1,4 @@
+import pygame as pg
 WIDTH = 1024-48
 HEIGHT = 768-32
 TITLE = "My cool game..."
@@ -15,4 +16,5 @@ GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
 # player values
-PLAYER_SPEED = 560
+PLAYER_SPEED = 280
+PLAYER_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)

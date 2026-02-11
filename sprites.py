@@ -7,6 +7,14 @@ from os import path
 
 vec = pg.math.Vector2 #using vectors
 
+def collide_hit_rect(one, two):  #creating a function so that all classes can use this function, checks for collision between 2 entities, one and two, part of git library
+    return one.hit_rect.colliderect(two.rect)
+
+def collide_with_walls(sprite, group, dir): # A function that finds what it colliding, the sprite, the group of the sprite, wheter to destroy, and the other fuction ^. Checks whne direction is x
+    if dir == 'x':
+        hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
+        print(hits)
+
 class Player(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_players #group
@@ -17,6 +25,7 @@ class Player(Sprite):
         self.rect = self.image.get_rect() #creating rect for vector math
         self.vel = vec(0,0) #velocity
         self.pos = vec(x,y) * TILESIZE #postion
+        self.hit_rect = PLAYER_HIT_RECT
         
     def get_key(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
