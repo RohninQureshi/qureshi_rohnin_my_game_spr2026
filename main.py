@@ -59,10 +59,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_mobs = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
         self.all_coins = pg.sprite.Group()
-        # self.player = Player(self, 15, 15) #these lines of code (59-61) actually load the class on Screen, and assigned a variable to them
-        # self.mob = Mob(self, 4, 4)
-        # self.wall = Wall(self,10,10)
-        for row, tiles in enumerate(self.map.data):
+        
+        for row, tiles in enumerate(self.map.data): #this section of code loads the entities (wall,player,mobs) based upon the map data we made (level1.txt), by enumerating through each cahrecter, and looking at it's value and pos.
             for col, tile, in enumerate(tiles):
                 if tile == '1':
                     Wall(self, col, row)
@@ -123,11 +121,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_sprites.draw(self.screen) #drawing sprite
         pg.display.flip()
 
-    def draw_text(self, text, size, color, x, y):  # function thatdraws text on the screen
+    def draw_text(self, text, size, color, x, y):  # function that draws text on the screen
         font_name = pg.font.match_font("arial") #font
         font = pg.font.Font(font_name, size)
         text_surface = font.render(text, True, color) #actually puts it on screen
-        text_rect = text_surface.get_rect() #makes it a rect, good for manipulating pos
+        text_rect = text_surface.get_rect() #makes it a rect
         text_rect.midtop = (x, y) #pos of text
         self.screen.blit(text_surface, text_rect)
 

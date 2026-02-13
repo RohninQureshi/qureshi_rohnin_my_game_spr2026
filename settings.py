@@ -6,9 +6,9 @@ FPS = 60
 TILESIZE = 32
 
 
-# color values
 
-# tuple storing RGB values
+
+# tuple storing RGB color values
 BLUE = (0, 0, 255)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)

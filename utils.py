@@ -1,8 +1,8 @@
 import pygame as pg
 from settings import *
 
-# This class creates a countdown timer for a cooldown
 
+#This class allows for loading up a "world" via data in txt format (look at level1.txt for reference on what Im talking about)
 class Map:
     def __init__(self, filename):
         #creating the data for building the map using a list
@@ -19,7 +19,7 @@ class Map:
         self.width = self.tilewidth * TILESIZE
         self.height = self.tileheight * TILESIZE
 
-
+# This class creates a countdown timer for a cooldown
 class Cooldown:
     def __init__(self, time):
         self.start_time = 0

@@ -7,13 +7,33 @@ from os import path
 
 vec = pg.math.Vector2 #using vectors
 
+#TODO add collision with mob (death sequence) and coin (win sequence)
+
 def collide_hit_rect(one, two):  #creating a function so that all classes can use this function, checks for collision between 2 entities, one and two, part of git library
     return one.hit_rect.colliderect(two.rect)
 
-def collide_with_walls(sprite, group, dir): # A function that finds what it colliding, the sprite, the group of the sprite, wheter to destroy, and the other fuction ^. Checks whne direction is x
-    if dir == 'x':
+def collide_with_walls(sprite, group, dir): # A function that checks for collision on the x and y plane, and does physics based on it
+    if dir == 'x': #checks for dir (only does x)
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
-        print(hits)
+        if hits:
+            # print("collided with wall in the x dir")
+            if hits[0].rect.centerx > sprite.hit_rect.centerx: #if the first item in the list of things that collided's center pos is greater then the sprite we are checking (player) y-dir
+                sprite.pos.x = hits[0].rect.left - sprite.hit_rect.width/2 #the pos of sprite (player) will bounce off to the left by a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
+            if hits[0].rect.centerx < sprite.hit_rect.centerx: #if the first item in the list of things that collided's center pos is less then the sprite we are checking (player) y-dir
+                sprite.pos.x = hits[0].rect.right + sprite.hit_rect.width/2 #the pos of sprite (player) will bounce off to the right by a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
+            sprite.vel.x = 0 #setting the original velocity to 0
+            sprite.hit_rect.centerx = sprite.pos.x # setting the center of the player to be the position
+    if dir == 'y': #checks for dir (only does y)
+        hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
+        if hits:
+            # print("collided with wall in the y dir")
+            if hits[0].rect.centery > sprite.hit_rect.centery: #if the first item in the list of things that collided's center pos is greater then the sprite we are checking (player) y-dir
+                sprite.pos.y = hits[0].rect.top - sprite.hit_rect.width/2 #the pos of sprite (player) will bounce upward a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
+            if hits[0].rect.centery < sprite.hit_rect.centery: #if the first item in the list of things that collided's center pos is greater then the sprite we are checking (player) y-dir
+                sprite.pos.y = hits[0].rect.bottom + sprite.hit_rect.width/2 #the pos of sprite (player) will bounce downward by a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
+            sprite.vel.y = 0 #setting the original velocity to 0
+            sprite.hit_rect.centery = sprite.pos.y # setting the center of the player to be the position
+            
 
 class Player(Sprite):
     def __init__(self, game, x, y):
@@ -45,16 +65,14 @@ class Player(Sprite):
         self.get_key() 
         self.rect.center = self.pos #these next couple lines of code are what allow for movement and change of position
         self.pos += self.vel * self.game.dt
-        mob_hits = pg.sprite.spritecollide(self, self.game.all_mobs, False) #creating a variable that uses sprite's built in collide function to check for collision
-        if mob_hits:
-            print("Collided with Mob!")
         
-        object_hits = pg.sprite.spritecollide(self, self.game.all_walls, False)
-        if object_hits:
-            print("Collided with Objects!")
-        coin_hits = pg.sprite.spritecollide(self, self.game.all_coins, True)
-        if coin_hits:
-            print("Collided with Coin, Coin collected!")
+        self.hit_rect.centerx = self.pos.x #recentering hitbox
+        collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
+        self.hit_rect.centery = self.pos.y #recentering hitbox
+        collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
+        self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
+        
+
         
 class Mob(Sprite): 
     def __init__(self, game, x, y):
@@ -67,17 +85,11 @@ class Mob(Sprite):
         self.vel = vec(0,0)
         self.pos = vec(x,y) * TILESIZE
     
-    def update(self): #same from player, but different in movement
-        self.pos += self.game.player.pos*self.game.dt #this means that mob will take player's pos, and rush towards it
+    def update(self): #TODO change mob's movement, this code is outdated and irrelevant, fix by next class
+        self.pos += self.game.player.pos*self.game.dt 
         self.rect.center = self.pos
         self.pos += self.vel * self.game.dt
-        player_hits = pg.sprite.spritecollide(self, self.game.all_players, False)
-        if player_hits:
-            print("Collided with Mob!")
         
-        object_hits = pg.sprite.spritecollide(self, self.game.all_walls, False)
-        if object_hits:
-            print("Collided with Objects!")
 class Wall(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_walls
@@ -90,13 +102,7 @@ class Wall(Sprite):
     
     def update(self): #same as player, but no movement
         self.rect.center = self.pos
-        mob_hits = pg.sprite.spritecollide(self, self.game.all_mobs, False)
-        if mob_hits:
-            print("Collided with Mob!")
         
-        player_hits = pg.sprite.spritecollide(self, self.game.all_players, False)
-        if player_hits:
-            print("Collided with Player!")
 
 class Coin(Sprite):
     def __init__(self, game, x, y):
@@ -111,6 +117,3 @@ class Coin(Sprite):
     def update(self): #same as player, but no movement
         self.rect.center = self.pos
         
-        player_hits = pg.sprite.spritecollide(self, self.game.all_players, False)
-        if player_hits:
-            print("Collided with Player!")
