@@ -21,6 +21,21 @@ https://incompetech.com/music/royalty-free/
 
 
 """
+'''
+All TODOS to amke it easy to keep track
+
+
+#TODO: update mob's movement, have it chase player, if collision game over, if coin is collected mob stops, level is completed.   
+#TODO add collection from player, win sequence, and also add multiple levels, if win, goes to next level.   
+#TODO Add multiple levels, such that if win, goes to next level. Also add a game over screen 
+
+#TODO Add textures to all sprites, update wall texture       
+
+'''
+
+
+
+
 
 import pygame as pg
 import sys
@@ -50,6 +65,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def load_data(self):
         self.game_dir = path.dirname(__file__) #accesses file space, so it can now see my files
+        self.img_dir = path.join(self.game_dir, 'images')
+        self.wall_img= pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha()
         self.map = Map(path.join(self.game_dir, 'level1.txt'))
         print('data is loaded')
 

@@ -7,7 +7,6 @@ from os import path
 
 vec = pg.math.Vector2 #using vectors
 
-#TODO add collision with mob (death sequence) and coin (win sequence)
 
 def collide_hit_rect(one, two):  #creating a function so that all classes can use this function, checks for collision between 2 entities, one and two, part of git library
     return one.hit_rect.colliderect(two.rect)
@@ -84,19 +83,26 @@ class Mob(Sprite):
         self.rect = self.image.get_rect()
         self.vel = vec(0,0)
         self.pos = vec(x,y) * TILESIZE
-    
-    def update(self): #TODO change mob's movement, this code is outdated and irrelevant, fix by next class
+        self.hit_rect = MOB_HIT_RECT
+
+    def update(self): 
         self.pos += self.game.player.pos*self.game.dt 
         self.rect.center = self.pos
         self.pos += self.vel * self.game.dt
+        self.hit_rect.centerx = self.pos.x #recentering hitbox
+        collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
+        self.hit_rect.centery = self.pos.y #recentering hitbox
+        collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
+        self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
         
 class Wall(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_walls
         Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(GREEN) #only difference, color
+        self.image = game.wall_img
+        # self.image = pg.Surface((TILESIZE, TILESIZE))
+        # self.image.fill(GREEN) #only difference, color
         self.rect = self.image.get_rect()
         self.pos = vec(x,y) * TILESIZE
     
@@ -114,6 +120,6 @@ class Coin(Sprite):
         self.rect = self.image.get_rect()
         self.pos = vec(x,y) * TILESIZE
     
-    def update(self): #same as player, but no movement
+    def update(self): #same as player, but no movement 
         self.rect.center = self.pos
         
