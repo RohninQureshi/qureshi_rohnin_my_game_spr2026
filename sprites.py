@@ -1,6 +1,7 @@
 import pygame as pg
 from pygame.sprite import Sprite
 from settings import *
+from utils import *
 import sys
 from os import path
 
@@ -39,12 +40,18 @@ class Player(Sprite):
         self.groups = game.all_sprites, game.all_players #group
         Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((TILESIZE, TILESIZE)) #rendering 
+        self.spritesheet = Spritesheet(path.join(self.game.img_dir, "sprite_sheet.png"))
+        self.load_images()
+        self.image = pg.Surface((TILESIZE,TILESIZE))
         self.image.fill(WHITE)
         self.rect = self.image.get_rect() #creating rect for vector math
         self.vel = vec(0,0) #velocity
         self.pos = vec(x,y) * TILESIZE #postion
         self.hit_rect = PLAYER_HIT_RECT
+        self.jumping = False
+        self.walking = False
+        self.last_update = 0
+        self.current_frame = 0
         
     def get_key(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
@@ -60,8 +67,43 @@ class Player(Sprite):
         if self.vel.x != 0 and self.vel.y != 0:
             self.vel *= 0.7071 #a^2+b^2=c^2 so if a = and b = 1 then c = sqrt(2), so we multiply by root 2, prevents movement being faster diagonally
     
+    def load_images(self):
+        self.standing_frames = [self.spritesheet.get_image(0, 0, TILESIZE, TILESIZE), 
+                                self.spritesheet.get_image(TILESIZE, 0, TILESIZE, TILESIZE) ]
+        self.walking_frames = [self.spritesheet.get_image(0, TILESIZE, TILESIZE, TILESIZE),
+                                self.spritesheet.get_image(TILESIZE, TILESIZE, TILESIZE, TILESIZE)]
+        for frame in self.standing_frames:
+            frame.set_colorkey(BLACK)
+        for frame in self.walking_frames:
+            frame.set_colorkey(BLACK)
+    
+    
+    def animate(self): #I made my spritesheet differently, making each row a state, rather then a charencter or thing
+        now = pg.time.get_ticks() #gets current time
+        if not self.jumping and not self.walking: #only while static, need to update self.walking and self.jumping
+            if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
+                self.last_update = now #updates now
+                self.current_frame = (self.current_frame + 1) % len(self.standing_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
+                bottom = self.rect.bottom
+                self.image = self.standing_frames[self.current_frame] #sets the current image to be that frame
+                self.rect = self.image.get_rect()
+                self.rect.bottom = bottom
+        if self.vel: #if player moves
+            self.walking = True
+        else:
+            self.walking = False
+        if self.walking and not self.jumping: #only when walking, works the same as standing frames
+            if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
+                self.last_update = now #updates now
+                self.current_frame = (self.current_frame + 1) % len(self.walking_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
+                bottom = self.rect.bottom
+                self.image = self.walking_frames[self.current_frame] #sets the current image to be that frame
+                self.rect = self.image.get_rect()
+                self.rect.bottom = bottom
+        
     def update(self): #constantly updating and checking for this
-        self.get_key() 
+        self.get_key() #callign getkey and animate
+        self.animate()
         self.rect.center = self.pos #these next couple lines of code are what allow for movement and change of position
         self.pos += self.vel * self.game.dt
         
@@ -115,8 +157,7 @@ class Coin(Sprite):
         self.groups = game.all_sprites, game.all_coins
         Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(YELLOW) #only difference, color
+        self.image = game.coin_img
         self.rect = self.image.get_rect()
         self.pos = vec(x,y) * TILESIZE
     

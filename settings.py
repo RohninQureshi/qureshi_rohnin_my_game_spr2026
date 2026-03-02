@@ -1,4 +1,6 @@
 import pygame as pg
+
+#regular game settings
 WIDTH = 1024-48
 HEIGHT = 768-32
 TITLE = "My cool game..."
@@ -14,8 +16,11 @@ WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
+BLACK = (0, 0, 0) 
 
 # player values
 PLAYER_SPEED = 280
 PLAYER_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)
+
+#mob values
 MOB_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)

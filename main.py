@@ -29,7 +29,7 @@ All TODOS to amke it easy to keep track
 #TODO add collection from player, win sequence, and also add multiple levels, if win, goes to next level.   
 #TODO Add multiple levels, such that if win, goes to next level. Also add a game over screen 
 
-#TODO Add textures to all sprites, update wall texture       
+#TODO Add textures to all sprites, update wall texture        
 
 '''
 
@@ -65,9 +65,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def load_data(self):
         self.game_dir = path.dirname(__file__) #accesses file space, so it can now see my files
-        self.img_dir = path.join(self.game_dir, 'images')
-        self.wall_img= pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha()
-        self.map = Map(path.join(self.game_dir, 'level1.txt'))
+        self.img_dir = path.join(self.game_dir, 'images') #sets the directory for images
+        self.wall_img= pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
+        self.coin_img= pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
+        self.map = Map(path.join(self.game_dir, 'level1.txt')) #loads map using data from level1.txt, look at new for more
         print('data is loaded')
 
     def new(self):
@@ -148,7 +149,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
 
 if __name__ == "__main__":
-    g = Game()
+    g = Game() #instanciates Game class, so we can utilize it
 
 while g.running:
     g.new()
