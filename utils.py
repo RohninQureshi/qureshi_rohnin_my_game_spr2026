@@ -47,7 +47,6 @@ class Cooldown:
         # sets current time
         current_time = pg.time.get_ticks()
         # if the difference between current and start time are greater than self.time, return True
-       
         
         if current_time - self.start_time >= self.time:  #If the change in time (t final - t initial) is greater than or equal to the cooldown time, you can use the item again, enough time has passed, otherwise you can't, you haven't gone long enough to where the cooldown has worn off
             return True

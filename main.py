@@ -22,7 +22,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 '''
-All TODOS to amke it easy to keep track
+All TODOS to make it easy to keep track
 
 
 #TODO: update mob's movement, have it chase player, if collision game over, if coin is collected mob stops, level is completed.   
@@ -30,6 +30,11 @@ All TODOS to amke it easy to keep track
 #TODO Add multiple levels, such that if win, goes to next level. Also add a game over screen 
 
 #TODO Add textures to all sprites, update wall texture        
+
+#TODO Add cooldown to projectile and sprinting
+
+
+#TODO Fix porjectiles to actually spawn on the player
 
 '''
 
@@ -77,6 +82,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_mobs = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
         self.all_coins = pg.sprite.Group()
+        self.all_projectiles = pg.sprite.Group()
         
         for row, tiles in enumerate(self.map.data): #this section of code loads the entities (wall,player,mobs) based upon the map data we made (level1.txt), by enumerating through each cahrecter, and looking at it's value and pos.
             for col, tile, in enumerate(tiles):
@@ -89,7 +95,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 if tile =='C':
                     self.coin = Coin(self, col, row)
                 
-            
         self.run()
 
     def run(self):

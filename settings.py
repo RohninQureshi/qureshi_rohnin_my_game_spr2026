@@ -20,7 +20,11 @@ BLACK = (0, 0, 0)
 
 # player values
 PLAYER_SPEED = 280
+PLAYER_SPRINT_SPEED = 560
 PLAYER_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)
 
 #mob values
 MOB_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)
+
+#projectile values
+PROJECTILE_SPEED = 10
