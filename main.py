@@ -31,8 +31,6 @@ All TODOS to make it easy to keep track
 
 #TODO Add textures to all sprites, update wall texture        
 
-#TODO Add cooldown to projectile and sprinting
-
 
 #TODO Fix porjectiles to actually spawn on the player
 

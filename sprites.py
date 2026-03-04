@@ -52,6 +52,8 @@ class Player(Sprite):
         self.walking = False
         self.last_update = 0
         self.current_frame = 0
+        self.projectile_cd = Cooldown(500)
+        self.sprinting_cd = Cooldown(3000)
         
     def get_key_movement(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
@@ -70,8 +72,12 @@ class Player(Sprite):
     def get_key_projectile(self): #looking for key press of specific key, and will insanciate a projectile when that key is pressed
         keys = pg.key.get_pressed()
         if keys[pg.K_f]:
-            print("Projectile fired")
-            p = Projectile(self.game, self.rect.x, self.rect.y)
+            if self.projectile_cd.ready():
+                self.projectile_cd.start()
+                print("Projectile fired")
+                p = Projectile(self.game, self.rect.x, self.rect.y)
+            else:
+                print("Cooldown still active")
     
     def load_images(self):
         self.standing_frames = [self.spritesheet.get_image(0, 0, TILESIZE, TILESIZE), 
@@ -94,7 +100,11 @@ class Player(Sprite):
         else:
             self.walking = False
         if keys[pg.K_LSHIFT]: #if the left shift key is pressed down
-            self.sprinting = True
+            if self.sprinting_cd.ready():
+                self.sprinting_cd.start()
+                self.sprinting = True
+            else:
+                print("Cooldown active")
         else:
             self.sprinting = False
     
