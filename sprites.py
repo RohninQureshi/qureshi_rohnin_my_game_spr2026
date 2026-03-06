@@ -2,6 +2,9 @@ import pygame as pg
 from pygame.sprite import Sprite
 from settings import *
 from utils import *
+from state_machine import *
+from player_states import *
+from ctypes import Array
 import sys
 from os import path
 
@@ -54,6 +57,9 @@ class Player(Sprite):
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
         self.sprinting_cd = Cooldown(3000)
+        self.state_machine = StateMachine()
+        self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self)]
+        self.state_machine.start_machine(self.states)
         
     def get_key_movement(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
@@ -97,12 +103,15 @@ class Player(Sprite):
         keys = pg.key.get_pressed() #gets the keys pressed
         if self.vel: #if player moves
             self.walking = True
+        
         else:
             self.walking = False
+            
         if keys[pg.K_LSHIFT]: #if the left shift key is pressed down
             if self.sprinting_cd.ready():
                 self.sprinting_cd.start()
                 self.sprinting = True
+                
             else:
                 print("Cooldown active")
         else:

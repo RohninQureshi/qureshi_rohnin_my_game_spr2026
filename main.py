@@ -47,6 +47,9 @@ from os import path
 from settings import *
 from sprites import *
 from utils import *
+from state_machine import *
+from player_states import *
+
 
 # import settings
 
@@ -106,15 +109,17 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def events(self):
         for event in pg.event.get():
-            if (
-                event.type == pg.QUIT
-            ):  # allows quitting, if playing stops playing, and it stops running
+            if event.type == pg.KEYDOWN: #allows for quitting on press of escape key
+                if event.key == pg.K_ESCAPE:
+                    pg.QUIT
+                    if self.playing:
+                        self.playing = False
+                    self.running = False
+            if event.type == pg.QUIT: #regular quitting
                 if self.playing:
-                    self.playing = False
+                        self.playing = False
                 self.running = False
-            if (
-                event.type == pg.MOUSEBUTTONUP
-            ):  # this allows us to utilize releasing the mouse button as an input or condition
+            if (event.type == pg.MOUSEBUTTONUP):  # this allows us to utilize releasing the mouse button as an input or condition
                 print("i can get mouse input")
                 print(event.pos)
             if event.type == pg.KEYDOWN:  # Same here but for when the key is pressed
@@ -123,7 +128,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             if event.type == pg.KEYUP:  # Same here but for when the key is released
                 if event.key == pg.K_k:
                     print("i can determine when keys are released")
-            
 
                     
 
@@ -135,7 +139,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
-        self.draw_text("Hello World", 24, WHITE, WIDTH / 2, TILESIZE)  # calling of draw text
+        self.draw_text("Hello World", 24, WHITE, WIDTH / 2, TILESIZE)  # calling of draw text 
         self.draw_text(str(self.dt), 24, WHITE, WIDTH / 2, HEIGHT / 4)  # calling of draw text
         self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH / 2, HEIGHT / 3) # calling of draw text
         self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
