@@ -41,14 +41,14 @@ All TODOS to make it easy to keep track
 
 
 import pygame as pg
-import sys
+#import sys
 from random import *
 from os import path 
 from settings import *
 from sprites import *
 from utils import *
-from state_machine import *
-from player_states import *
+#from state_machine import *
+#from player_states import *
 
 
 # import settings
@@ -155,8 +155,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.screen.blit(text_surface, text_rect)
 
 
-if __name__ == "__main__":
-    g = Game() #instanciates Game class, so we can utilize it
+#if __name__ == "__main__":
+g = Game() #instanciates Game class, so we can utilize it
 
 while g.running:
     g.new()

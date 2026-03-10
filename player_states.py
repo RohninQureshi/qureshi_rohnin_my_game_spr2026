@@ -1,5 +1,6 @@
 from state_machine import *
 from settings import *
+from main import *
 
 class PlayerIdleState(State):
     def __init__(self, player):
@@ -17,12 +18,11 @@ class PlayerIdleState(State):
         print('exit player idle state')
 
     def update(self):
+        pass
         # print('updating player idle state...')
         
 
-
 class PlayerWalkingState(State):
-    
     def __init__(self, player):
         self.player = player
         self.name = "walking"
@@ -37,11 +37,11 @@ class PlayerWalkingState(State):
         print('exit player walking state')
 
     def update(self):
+        pass
         # print('updating player walking state...')
         
 
 class PlayerSprintingState:
-    
     def __init__(self, player):
         self.player = player
         self.name = "sprinting"
@@ -57,6 +57,7 @@ class PlayerSprintingState:
         print("exit player sprinting state")
     
     def update(self):
+        pass
         # print('updating player sprinting state...')
 class PlayerAttackingState:
     
@@ -75,4 +76,6 @@ class PlayerAttackingState:
         print("exit player attacking state")
     
     def update(self):
+        pass
         # print('updating player attacking state...')
+        
