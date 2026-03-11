@@ -78,12 +78,8 @@ class Player(Sprite):
     def get_key_projectile(self): #looking for key press of specific key, and will insanciate a projectile when that key is pressed
         keys = pg.key.get_pressed()
         if keys[pg.K_f]:
-            if self.projectile_cd.ready():
-                self.projectile_cd.start()
-                print("Projectile fired")
-                p = Projectile(self.game, self.rect.x, self.rect.y)
-            else:
-                print("Cooldown still active")
+            print("Projectile fired")
+            p = Projectile(self.game, self.rect.x, self.rect.y)
     
     def load_images(self):
         self.standing_frames = [self.spritesheet.get_image(0, 0, TILESIZE, TILESIZE), 
