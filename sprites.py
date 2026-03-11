@@ -55,11 +55,14 @@ class Player(Sprite):
         self.walking = False
         self.last_update = 0
         self.current_frame = 0
+<<<<<<< HEAD
         self.projectile_cd = Cooldown(500)
         self.sprinting_cd = Cooldown(3000)
         # self.state_machine = StateMachine()
         # self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self)]
         # self.state_machine.start_machine(self.states)
+=======
+>>>>>>> parent of 9b3ae72 (figured out cooldown)
         
     def get_key_movement(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
@@ -104,12 +107,16 @@ class Player(Sprite):
             self.walking = False
             
         if keys[pg.K_LSHIFT]: #if the left shift key is pressed down
+<<<<<<< HEAD
             if self.sprinting_cd.ready():
                 self.sprinting_cd.start()
                 self.sprinting = True
                 
             else:
                 print("Cooldown active")
+=======
+            self.sprinting = True
+>>>>>>> parent of 9b3ae72 (figured out cooldown)
         else:
             self.sprinting = False
     
