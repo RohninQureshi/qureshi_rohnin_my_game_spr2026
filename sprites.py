@@ -4,6 +4,9 @@ from settings import *
 from utils import *
 import sys
 from os import path
+from ctypes import Array
+from player_states import *
+from state_machine import *
 
 
 vec = pg.math.Vector2 #using vectors
@@ -54,6 +57,9 @@ class Player(Sprite):
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
         self.sprinting_cd = Cooldown(3000)
+        # self.state_machine = StateMachine()
+        # self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self)]
+        # self.state_machine.start_machine(self.states)
         
     def get_key_movement(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
@@ -97,8 +103,10 @@ class Player(Sprite):
         keys = pg.key.get_pressed() #gets the keys pressed
         if self.vel: #if player moves
             self.walking = True
+            # self.state_machine.transition("move")
         else:
             self.walking = False
+            # self.state_machine.transition("idle")
         if keys[pg.K_LSHIFT]: #if the left shift key is pressed down
             if self.sprinting_cd.ready():
                 self.sprinting_cd.start()
@@ -204,19 +212,20 @@ class Coin(Sprite):
     def update(self): #same as player, but no movement 
         self.rect.center = self.pos
         
-class Projectile(Sprite): #new class based on mob, projectiles
+class Projectile(Sprite):
     def __init__(self, game, x, y):
-        self.groups = game.all_sprites, game.all_projectiles #group
+        self.groups = game.all_sprites, game.all_projectiles
         Sprite.__init__(self, self.groups)
         self.game = game
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(RED) #only difference from player, the color
+        self.image.fill(RED)
         self.rect = self.image.get_rect()
-        self.vel = vec(1,0) #1,0 instead of 0,0 because we want it to move
+        self.vel = vec(0,0)
         self.pos = vec(x,y) * TILESIZE
-        self.hit_rect = MOB_HIT_RECT
-        self.speed = PROJECTILE_SPEED
-
+        self.speed = 10
+        print("im a real projectile...")
+    def update(self):
+        pass
     
 
         
