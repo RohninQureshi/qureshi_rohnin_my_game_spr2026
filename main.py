@@ -83,7 +83,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_coins = pg.sprite.Group()
         self.all_projectiles = pg.sprite.Group()
         
-        self.camera = Camera(self.map.width, self.map.height)
+        self.camera = Camera(self.map.width, self.map.height) #Actually instanciates the  camera
         
         for row, tiles in enumerate(self.map.data): #this section of code loads the entities (wall,player,mobs) based upon the map data we made (level1.txt), by enumerating through each cahrecter, and looking at it's value and pos.
             for col, tile, in enumerate(tiles):
@@ -106,19 +106,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.events() #these three functions are constantly called, allowing for things to be drawn, evenets to happen, constantly updating
             self.update()
             self.draw()
+            self.quit() #this allows for quitting
 
     def events(self):
         for event in pg.event.get():
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    pg.QUIT
-                    if self.playing:
-                        self.playing = False
-                    self.running = False
-            if (event.type == pg.QUIT):  # allows quitting, if playing stops playing, and it stops running
-                if self.playing:
-                    self.playing = False
-                self.running = False
             if (
                 event.type == pg.MOUSEBUTTONUP
             ):  # this allows us to utilize releasing the mouse button as an input or condition
@@ -135,12 +126,22 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     
 
     def quit(self):
-        pass
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN: #This allows to quit on the press of the key escape
+                if event.key == pg.K_ESCAPE:
+                    pg.QUIT
+                    if self.playing:
+                        self.playing = False
+                    self.running = False
+            if (event.type == pg.QUIT):  # allows quitting, if playing stops playing, and it stops running
+                if self.playing:
+                    self.playing = False
+                self.running = False
 
     def update(self):
         self.all_sprites.update() #updating sprites for dynamics (movement of player)
-        if self.camera is not None:
-            self.camera.update(self.player)
+        if self.camera is not None: #if the camera exists
+            self.camera.update(self.player) #the camera is updating for player, so it locks onto player
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
@@ -148,8 +149,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # self.draw_text(str(self.dt), 24, WHITE, WIDTH / 2, HEIGHT / 4)  # calling of draw text
         # self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH / 2, HEIGHT / 3) # calling of draw text
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
-        for sprite in self.all_sprites:
-            self.screen.blit(sprite.image, self.camera.apply(sprite))
+        
+        for sprite in self.all_sprites: #looks through all sprites
+            self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
 
         pg.display.flip()
 
