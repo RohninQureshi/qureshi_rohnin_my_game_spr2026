@@ -51,3 +51,28 @@ class Cooldown:
         if current_time - self.start_time >= self.time:  #If the change in time (t final - t initial) is greater than or equal to the cooldown time, you can use the item again, enough time has passed, otherwise you can't, you haven't gone long enough to where the cooldown has worn off
             return True
         return False
+
+
+
+
+class Camera:
+    def __init__(self, world_width, world_height):
+        self.camera = pg.Rect(0, 0, world_width, world_height)
+        self.world_width = world_width
+        self.world_height = world_height
+
+    def apply(self, entity):
+        return entity.rect.move(self.camera.topleft)
+
+    def update(self, target):
+        x = -target.rect.centerx + WIDTH // 2
+        y = -target.rect.centery + HEIGHT // 2
+
+        x = min(0, x)
+        y = min(0, y)
+        x = max(-(self.world_width - WIDTH), x)
+        y = max(-(self.world_height - HEIGHT), y)
+
+        self.camera = pg.Rect(x, y, self.world_width, self.world_height)
+
+

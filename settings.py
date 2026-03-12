@@ -3,7 +3,7 @@ import pygame as pg
 #regular game settings
 WIDTH = 1024-48
 HEIGHT = 768-32
-TITLE = "My cool game..."
+TITLE = "VantaBlade"
 FPS = 60
 TILESIZE = 32
 
