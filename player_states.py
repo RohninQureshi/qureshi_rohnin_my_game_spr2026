@@ -1,45 +1,62 @@
-from state_machine import *
-from settings import *
+
+from state_machine import State
+
 
 class PlayerIdleState(State):
     def __init__(self, player):
         self.player = player
-        self.name = "idle"
 
     def get_state_name(self):
         return "idle"
 
     def enter(self):
-        self.player.image.fill(WHITE)
-        print('enter player idle state')
+        pass
 
     def exit(self):
-        print('exit player idle state')
+        pass
 
     def update(self):
-        # print('updating player idle state...')
-        self.player.image.fill(WHITE)
-        keys = pg.key.get_pressed()
-        if keys[pg.K_k]:
-            print('transitioning to attack state...')
-            self.player.state_machine.transition("attack")
-            
+        if self.player.sprinting and self.player.walking:
+            self.player.state_machine.transition("sprint")
+        elif self.player.walking:
+            self.player.state_machine.transition("move")
+
+
 class PlayerMoveState(State):
     def __init__(self, player):
         self.player = player
-        self.name = "move"
 
     def get_state_name(self):
         return "move"
 
     def enter(self):
-        self.player.image.fill(WHITE)
-        print('enter player move state')
+        pass
 
     def exit(self):
-        print('exit player move state')
+        pass
 
     def update(self):
-        # print('updating player move state...')
-        self.player.image.fill(GREEN)
-        keys = pg.key.get_pressed()
+        if self.player.sprinting and self.player.walking:
+            self.player.state_machine.transition("sprint")
+        elif not self.player.walking:
+            self.player.state_machine.transition("idle")
+
+
+class PlayerSprintState(State):
+    def __init__(self, player):
+        self.player = player
+
+    def get_state_name(self):
+        return "sprint"
+
+    def enter(self):
+        pass
+
+    def exit(self):
+        pass
+
+    def update(self):
+        if not self.player.walking:
+            self.player.state_machine.transition("idle")
+        elif not self.player.sprinting:
+            self.player.state_machine.transition("move")

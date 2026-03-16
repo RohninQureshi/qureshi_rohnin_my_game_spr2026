@@ -35,9 +35,8 @@ All TODOS to make it easy to keep track
 #TODO Fix porjectiles to actually spawn on the player
 
 '''
-
-
-
+#Date of Last Update
+__updated__ = '2026-03-16 09:22:23'
 
 
 import pygame as pg
@@ -103,11 +102,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.dt = (
                 self.clock.tick(FPS) / 1000
             )  # divided by 1000 bc we want milliseconds, this is delta time
+            self.quit() #this allows for quitting
             self.events() #these three functions are constantly called, allowing for things to be drawn, evenets to happen, constantly updating
             self.update()
             self.draw()
-            self.quit() #this allows for quitting
-
+            
     def events(self):
         for event in pg.event.get():
             if (

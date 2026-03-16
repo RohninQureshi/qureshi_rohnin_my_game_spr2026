@@ -57,9 +57,10 @@ class Player(Sprite):
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
         self.sprinting_cd = Cooldown(3000)
-        # self.state_machine = StateMachine()
-        # self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self)]
-        # self.state_machine.start_machine(self.states)
+        self.state_machine = StateMachine()
+        self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self)]
+        self.state_machine.start_machine(self.states)
+
         
     def get_key_movement(self): #function for movement
         self.vel = vec(0,0) #making sure player doesnt constantly move
