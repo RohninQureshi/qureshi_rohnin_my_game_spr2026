@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-16 09:22:23'
+__updated__ = '2026-03-19 13:44:48'
 
 
 import pygame as pg
@@ -108,18 +108,19 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw()
             
     def events(self):
-        for event in pg.event.get():
-            if (
-                event.type == pg.MOUSEBUTTONUP
-            ):  # this allows us to utilize releasing the mouse button as an input or condition
-                print("i can get mouse input")
-                print(event.pos)
-            if event.type == pg.KEYDOWN:  # Same here but for when the key is pressed
-                if event.key == pg.K_k:
-                    print("i can determine when keys are pressed")
-            if event.type == pg.KEYUP:  # Same here but for when the key is released
-                if event.key == pg.K_k:
-                    print("i can determine when keys are released")
+        # for event in pg.event.get():
+        #     if (
+        #         event.type == pg.MOUSEBUTTONUP
+        #     ):  # this allows us to utilize releasing the mouse button as an input or condition
+        #         print("i can get mouse input")
+        #         print(event.pos)
+        #     if event.type == pg.KEYDOWN:  # Same here but for when the key is pressed
+        #         if event.key == pg.K_k:
+        #             print("i can determine when keys are pressed")
+        #     if event.type == pg.KEYUP:  # Same here but for when the key is released
+        #         if event.key == pg.K_k:
+        #             print("i can determine when keys are released")
+        pass
             
 
                     
@@ -164,10 +165,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
 
 if __name__ == "__main__":
-    g = Game() #instanciates Game class, so we can utilize it
-
-while g.running:
+    g = Game() #instanciates game class, so it can be used
     g.new()
-
-
-pg.quit()
+    g.run()
+    pg.quit()
