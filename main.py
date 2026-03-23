@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-23 12:23:44'
+__updated__ = '2026-03-23 12:29:52'
 
 
 import pygame as pg
@@ -97,7 +97,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
-                
+        pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
+        pg.mixer.music.play(loops=-1)
         self.run()
 
     def run(self):
