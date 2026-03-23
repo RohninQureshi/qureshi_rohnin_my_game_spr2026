@@ -68,7 +68,7 @@ class Camera:
         x = -target.rect.centerx + WIDTH // 2
         y = -target.rect.centery + HEIGHT // 2
 
-        x = min(0, x) #These 4 lines min max the x andy coordinantes of the camera to prevent the camera from panning too far
+        x = min(0, x) #These 4 lines min max the x and y coordinantes of the camera to prevent the camera from panning too far
         y = min(0, y)
         x = max(-(self.world_width - WIDTH), x)
         y = max(-(self.world_height - HEIGHT), y)

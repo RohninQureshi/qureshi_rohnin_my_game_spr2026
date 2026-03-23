@@ -161,7 +161,11 @@ class Player(Sprite):
         self.hit_rect.centery = self.pos.y #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
-        
+        c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
+        if c_hits:
+            self.game.pickup_snd.play()
+            print("You Win!")
+            
 
         
 class Mob(Sprite): 

@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-19 13:44:48'
+__updated__ = '2026-03-23 12:23:44'
 
 
 import pygame as pg
@@ -47,13 +47,14 @@ from settings import *
 from sprites import *
 from utils import *
 
-# import settings
+#imports
 
 
 # the game class that will be instantiated in order to run the game...
 class Game:  # "The pen factory", all products are "products", not also the "factory"
     def __init__(self):
         pg.init()
+        pg.mixer.init()
         # setting up pygame screen using tuple value for width height
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption(TITLE)
@@ -69,8 +70,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
     def load_data(self):
         self.game_dir = path.dirname(__file__) #accesses file space, so it can now see my files
         self.img_dir = path.join(self.game_dir, 'images') #sets the directory for images
-        self.wall_img= pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
-        self.coin_img= pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
+        self.snd_dir = path.join(self.game_dir, 'sounds') #sets the directory for images
+        self.wall_img = pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
+        self.coin_img = pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
+        self.pickup_snd = pg.mixer.Sound(path.join(self.snd_dir, "pickup.mp3"))
         self.map = Map(path.join(self.game_dir, 'level1.txt')) #loads map using data from level1.txt, look at new for more
         print('data is loaded')
 
