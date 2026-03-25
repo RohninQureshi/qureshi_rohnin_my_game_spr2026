@@ -55,6 +55,7 @@ from datetime import datetime
 
 
 # the game class that will be instantiated in order to run the game...
+# Main game class that owns the window, assets, save data, level loading, and game loop.
 class Game:  # "The pen factory", all products are "products", not also the "factory"
     def __init__(self):
         pg.init()

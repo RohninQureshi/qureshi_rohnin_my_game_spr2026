@@ -1,4 +1,6 @@
 is_log_enabled: bool = False
+
+# Parent class for all states so they share the same interface.
 class State:
     # Base state class; concrete states override whichever methods they need.
     def enter(self):
@@ -13,6 +15,7 @@ class State:
     def get_state_name(self):
         return ""
 
+# Generic state machine that stores states and handles transitions between them.
 class StateMachine:
     def __init__(self):
         # current_state stores whichever state object is active right now.

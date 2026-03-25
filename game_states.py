@@ -1,6 +1,7 @@
 from state_machine import State
 
 
+# State used while the game world is actively running and updating.
 class GamePlayingState(State):
     def __init__(self, game):
         # stores a reference to the main Game object so the state can control it
@@ -23,6 +24,7 @@ class GamePlayingState(State):
             self.game.camera.update(self.game.player)
 
 
+# State used when gameplay is frozen but the game is still open.
 class GamePausedState(State):
     def __init__(self, game):
         self.game = game
@@ -42,6 +44,7 @@ class GamePausedState(State):
         pass
 
 
+# State used after the player loses and gameplay should stop.
 class GameOverState(State):
     def __init__(self, game):
         # stores a reference to the main Game object so the state can control it
@@ -62,6 +65,7 @@ class GameOverState(State):
         pass
 
 
+# State used for the title / start screen before gameplay begins.
 class GameStartState(State):
     def __init__(self, game):
         # stores a reference to the main Game object so the state can control it
@@ -81,6 +85,7 @@ class GameStartState(State):
         # start screen also waits for input instead of updating gameplay
         pass
     
+# Temporary transition state used to move the game from one level to the next.
 class GameLevelClearState(State):
     def __init__(self, game):
         # stores a reference to the main Game object so the state can control it
@@ -101,6 +106,7 @@ class GameLevelClearState(State):
         pass
 
 
+# State used after the player beats the final level of the game.
 class GameWonState(State):
     def __init__(self, game):
         # stores a reference to the main Game object so the state can control it

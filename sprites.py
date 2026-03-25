@@ -38,6 +38,7 @@ def collide_with_walls(sprite, group, dir): # A function that checks for collisi
             sprite.hit_rect.centery = sprite.pos.y # setting the center of the player to be the position
             
 
+# Player sprite class that handles movement, animation, collisions, and player states.
 class Player(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_players #group
@@ -173,6 +174,7 @@ class Player(Sprite):
             
 
         
+# Enemy sprite class that currently moves toward the player.
 class Mob(Sprite): 
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_mobs #group
@@ -194,7 +196,8 @@ class Mob(Sprite):
         self.hit_rect.centery = self.pos.y #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
-        
+
+# Wall sprite class that represents solid map tiles the player and mobs collide with.
 class Wall(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_walls
@@ -208,8 +211,8 @@ class Wall(Sprite):
     
     def update(self): #same as player, but no movement
         self.rect.center = self.pos
-        
 
+# Coin sprite class that acts as the level objective when collected by the player.
 class Coin(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_coins
@@ -221,7 +224,8 @@ class Coin(Sprite):
     
     def update(self): #same as player, but no movement 
         self.rect.center = self.pos
-        
+
+# Projectile sprite class used for shots fired by the player.
 class Projectile(Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_projectiles

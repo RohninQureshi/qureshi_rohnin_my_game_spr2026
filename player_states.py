@@ -2,6 +2,7 @@
 from state_machine import State
 
 
+# Player state for standing still and waiting for movement input.
 class PlayerIdleState(State):
     def __init__(self, player):
         # player reference is needed so the state can inspect movement flags and transition
@@ -24,6 +25,7 @@ class PlayerIdleState(State):
             self.player.state_machine.transition("move")
 
 
+# Player state for normal movement without sprinting.
 class PlayerMoveState(State):
     def __init__(self, player):
         self.player = player
@@ -45,6 +47,7 @@ class PlayerMoveState(State):
             self.player.state_machine.transition("idle")
 
 
+# Player state for faster movement while sprinting is active.
 class PlayerSprintState(State):
     def __init__(self, player):
         self.player = player

@@ -3,6 +3,7 @@ from settings import *
 
 
 #This class allows for loading up a "world" via data in txt format (look at level1.txt for reference on what Im talking about)
+# Reads a tilemap text file and stores both the raw layout and map dimensions.
 class Map:
     def __init__(self, filename):
         #creating the data for building the map using a list
@@ -20,6 +21,7 @@ class Map:
         self.height = self.tileheight * TILESIZE
 
 
+# Loads an image file and slices out individual frames from a sprite sheet.
 class Spritesheet:
     def __init__(self, filename):
         self.spritesheet = pg.image.load(filename).convert()
@@ -34,6 +36,7 @@ class Spritesheet:
 
 
 # This class creates a countdown timer for a cooldown
+# Simple reusable timer class for cooldown-based actions.
 class Cooldown:
     def __init__(self, time):
         self.start_time = 0
@@ -55,6 +58,7 @@ class Cooldown:
 
 
 
+# Camera class that keeps the player centered while clamping view to the map bounds.
 class Camera:
     def __init__(self, world_width, world_height):
         self.camera = pg.Rect(0, 0, world_width, world_height) #creates a camera as a rectangle
@@ -71,7 +75,7 @@ class Camera:
         x = -target.rect.centerx + WIDTH // 2
         y = -target.rect.centery + HEIGHT // 2
 
-        x = min(0, x) #These 4 lines min max the x and y coordinantes of the camera to prevent the camera from panning too far
+        x = min(0, x) 
         y = min(0, y)
         x = max(-(self.world_width - WIDTH), x)
         y = max(-(self.world_height - HEIGHT), y)
