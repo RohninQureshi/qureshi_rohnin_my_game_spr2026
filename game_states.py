@@ -52,3 +52,20 @@ class GameOverState(State):
 
     def update(self):
         pass
+
+
+class GameStartState(State):
+    def __init__(self, game):
+        self.game = game
+
+    def get_state_name(self):
+        return "start"
+
+    def enter(self):
+        self.game.playing = False
+
+    def exit(self):
+        pass
+
+    def update(self):
+        pass

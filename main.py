@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-25 11:06:23'
+__updated__ = '2026-03-25 11:13:40'
 
 
 import pygame as pg
@@ -47,7 +47,7 @@ from settings import *
 from sprites import *
 from utils import *
 from state_machine import StateMachine
-from game_states import GamePlayingState, GamePausedState, GameOverState
+from game_states import *
 
 
 #imports
@@ -69,10 +69,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.load_data()
         self.state_machine = StateMachine()
         self.game_states = [
-            GamePlayingState(self),
-            GamePausedState(self),
-            GameOverState(self),
+        GameStartState(self),
+        GamePlayingState(self),
+        GamePausedState(self),
+        GameOverState(self),
         ]
+
         self.state_machine.start_machine(self.game_states)
 
 
@@ -145,6 +147,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 elif event.key == pg.K_g:
                     self.state_machine.transition("game_over")
 
+                elif event.key == pg.K_RETURN:
+                    current_state = self.state_machine.current_state.get_state_name()
+                    if current_state == "start":
+                        self.state_machine.transition("playing")
+
     
     
 
@@ -179,6 +186,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         if current_state == "game_over":
             self.draw_text("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
             print("game_over")
+        
+        if current_state == "start":
+            self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)
+            self.draw_text("Press ENTER to start", 28, WHITE, WIDTH / 2, HEIGHT / 2)
+
 
         pg.display.flip()
 
