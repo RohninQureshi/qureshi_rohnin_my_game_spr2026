@@ -1,5 +1,17 @@
 is_log_enabled: bool = False
+class State:
+    # Base state class; concrete states override whichever methods they need.
+    def enter(self):
+        pass
 
+    def exit(self):
+        pass
+
+    def update(self):
+        pass
+
+    def get_state_name(self):
+        return ""
 
 class StateMachine:
     def __init__(self):
