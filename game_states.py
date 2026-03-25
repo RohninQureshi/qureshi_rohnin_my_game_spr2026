@@ -69,3 +69,19 @@ class GameStartState(State):
 
     def update(self):
         pass
+    
+class GameLevelClearState(State):
+    def __init__(self, game):
+        self.game = game
+
+    def get_state_name(self):
+        return "level_clear"
+
+    def enter(self):
+        self.game.next_level()
+
+    def exit(self):
+        pass
+
+    def update(self):
+        pass

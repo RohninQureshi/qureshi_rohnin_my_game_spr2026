@@ -164,7 +164,7 @@ class Player(Sprite):
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
             self.game.pickup_snd.play()
-            print("You Win!")
+            self.game.state_machine.transition("level_clear")
             
 
         

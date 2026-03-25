@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-25 11:13:40'
+__updated__ = '2026-03-25 11:22:37'
 
 
 import pygame as pg
@@ -66,6 +66,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.playing = True
         self.game_cooldown = Cooldown(3000) #in milliseconds
         self.camera = None
+        self.levels = ["level1.txt", "level2.txt"]
+        self.current_level_index = 0
         self.load_data()
         self.state_machine = StateMachine()
         self.game_states = [
@@ -73,6 +75,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         GamePlayingState(self),
         GamePausedState(self),
         GameOverState(self),
+        GameLevelClearState(self)
         ]
 
         self.state_machine.start_machine(self.game_states)
@@ -87,9 +90,22 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.wall_img = pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
         self.coin_img = pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
         self.pickup_snd = pg.mixer.Sound(path.join(self.snd_dir, "pickup.mp3"))
-        self.map = Map(path.join(self.game_dir, 'level1.txt')) #loads map using data from level1.txt, look at new for more
+        self.map = Map(path.join(self.game_dir, self.levels[self.current_level_index])) #loads map using data from current level, look at new for more
         print('data is loaded')
 
+    def load_current_level(self):
+        self.map = Map(path.join(self.game_dir, self.levels[self.current_level_index]))
+
+    def next_level(self):
+        if self.current_level_index < len(self.levels) - 1:
+            self.current_level_index += 1
+            self.load_current_level()
+            self.new()
+            self.state_machine.transition("playing")
+        else:
+            self.state_machine.transition("game_over")
+
+    
     def new(self):
         self.all_sprites = pg.sprite.Group() # these lines of code (55-59) are using sprite's grouping function and tying them to variables, so I can call upon different "groups (suchs as mobs, player, or Walls)" seperately
         self.all_players = pg.sprite.Group()
@@ -112,7 +128,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.coin = Coin(self, col, row)
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
         pg.mixer.music.play(loops=-1)
-        self.run()
+
 
     def run(self):
         while self.running:
