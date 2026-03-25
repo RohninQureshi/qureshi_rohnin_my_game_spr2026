@@ -57,6 +57,7 @@ class Player(Sprite):
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
         self.sprinting_cd = Cooldown(3000)
+        # player has its own movement-focused state machine separate from the game-wide one
         self.state_machine = StateMachine()
         self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self)]
         self.state_machine.start_machine(self.states)
@@ -87,6 +88,7 @@ class Player(Sprite):
                 print("Cooldown still active")
     
     def load_images(self):
+        # each list stores animation frames for a single player movement state
         self.standing_frames = [self.spritesheet.get_image(0, 0, TILESIZE, TILESIZE), 
                                 self.spritesheet.get_image(TILESIZE, 0, TILESIZE, TILESIZE) ]
         self.walking_frames = [self.spritesheet.get_image(0, TILESIZE, TILESIZE, TILESIZE),
@@ -152,6 +154,8 @@ class Player(Sprite):
         self.get_key_movement() #callign getkey and animate
         self.get_key_projectile()
         self.state()
+        # active player state runs its transition logic every frame
+        self.state_machine.update()
         self.animate()
         self.rect.center = self.pos #these next couple lines of code are what allow for movement and change of position
         self.pos += self.vel * self.game.dt
@@ -163,6 +167,7 @@ class Player(Sprite):
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
+            # coin pickup belongs to the game-wide flow, so it triggers the game state machine
             self.game.pickup_snd.play()
             self.game.state_machine.transition("level_clear")
             
@@ -236,6 +241,7 @@ class Projectile(Sprite):
         
 
     def update(self):
+        # keeps the projectile rect visually centered on its current position
         self.rect.center = self.pos # centering
 
         

@@ -58,13 +58,16 @@ class Cooldown:
 class Camera:
     def __init__(self, world_width, world_height):
         self.camera = pg.Rect(0, 0, world_width, world_height) #creates a camera as a rectangle
+        # stores the size of the full world so the camera knows the limits of the map
         self.world_width = world_width
         self.world_height = world_height
 
     def apply(self, entity):
+        # offsets an entity by the camera position so the world appears to move around the player
         return entity.rect.move(self.camera.topleft)
 
     def update(self, target):
+        # moves the camera so the target stays centered on screen
         x = -target.rect.centerx + WIDTH // 2
         y = -target.rect.centery + HEIGHT // 2
 
@@ -73,6 +76,7 @@ class Camera:
         x = max(-(self.world_width - WIDTH), x)
         y = max(-(self.world_height - HEIGHT), y)
 
+        # updates the camera rectangle using the new clamped offset
         self.camera = pg.Rect(x, y, self.world_width, self.world_height)
 
 

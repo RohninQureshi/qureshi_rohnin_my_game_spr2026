@@ -26,8 +26,6 @@ All TODOS to make it easy to keep track
 
 
 #TODO: update mob's movement, have it chase player, if collision game over, if coin is collected mob stops, level is completed.   
-#TODO add collection from player, win sequence, and also add multiple levels, if win, goes to next level.   
-#TODO Add multiple levels, such that if win, goes to next level. Also add a game over screen 
 
 #TODO Add textures to all sprites, update wall texture        
 
@@ -36,18 +34,21 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-25 11:22:37'
+__updated__ = '2026-03-25 12:30:08'
 
 
 import pygame as pg
 import sys
 from random import *
-from os import path 
+import os
 from settings import *
 from sprites import *
 from utils import *
 from state_machine import StateMachine
 from game_states import *
+import json
+from datetime import datetime
+
 
 
 #imports
@@ -66,44 +67,124 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.playing = True
         self.game_cooldown = Cooldown(3000) #in milliseconds
         self.camera = None
-        self.levels = ["level1.txt", "level2.txt"]
         self.current_level_index = 0
         self.load_data()
+        # saves are stored in a folder inside the project directory
+        self.save_dir = path.join(self.game_dir, "saves")
+        # restores the newest save before the map is built for play
+        self.load_latest_save()
+        self.load_current_level()
+        # this state machine controls game flow like start, pause, win, and game over
         self.state_machine = StateMachine()
         self.game_states = [
-        GameStartState(self),
-        GamePlayingState(self),
-        GamePausedState(self),
-        GameOverState(self),
-        GameLevelClearState(self)
+            GameStartState(self),
+            GamePlayingState(self),
+            GamePausedState(self),
+            GameOverState(self),
+            GameLevelClearState(self),
+            GameWonState(self),
         ]
 
+
         self.state_machine.start_machine(self.game_states)
+
+    def ensure_save_dir(self):
+        # create the saves folder if it does not already exist
+        if not path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
+
+    def get_save_data(self):
+        # packages the minimum progress data needed to restore the game later
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "current_level_index": self.current_level_index,
+            "current_level_file": self.levels[self.current_level_index],
+        }
+
+    def save_progress(self):
+        # writes a new timestamped save file, then removes older extras
+        self.ensure_save_dir()
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path = path.join(self.save_dir, f"save_{timestamp}.json")
+
+        with open(save_path, "w") as f:
+            json.dump(self.get_save_data(), f, indent=4)
+
+        self.prune_old_saves(keep_count=3)
+
+
+    def load_latest_save(self):
+        # finds the newest save file in the saves folder and restores the saved level index
+        self.ensure_save_dir()
+        save_files = [
+            path.join(self.save_dir, name)
+            for name in os.listdir(self.save_dir)
+            if name.endswith(".json")
+        ]
+
+        if not save_files:
+            return
+
+        latest_save = max(save_files, key=path.getmtime)
+
+        with open(latest_save, "r") as f:
+            data = json.load(f)
+
+        saved_index = data.get("current_level_index", 0)
+
+        if 0 <= saved_index < len(self.levels):
+            self.current_level_index = saved_index
+
+    def prune_old_saves(self, keep_count=1):
+        # keeps only the newest save files so disk usage does not grow forever
+        self.ensure_save_dir()
+
+        save_files = [
+            path.join(self.save_dir, name)
+            for name in os.listdir(self.save_dir)
+            if name.endswith(".json")
+        ]
+
+        save_files.sort(key=path.getmtime, reverse=True)
+
+        for old_save in save_files[keep_count:]:
+            os.remove(old_save)
 
 
     # a method is a function tied to a Class
 
     def load_data(self):
         self.game_dir = path.dirname(__file__) #accesses file space, so it can now see my files
+        # sets the directory for level files so maps can be organized in their own folder
+        self.level_dir = path.join(self.game_dir, "levels")
+        # automatically builds the level list by reading every txt file in the levels folder
+        self.levels = sorted(
+            [name for name in os.listdir(self.level_dir) if name.endswith(".txt")]
+        )       
+
         self.img_dir = path.join(self.game_dir, 'images') #sets the directory for images
         self.snd_dir = path.join(self.game_dir, 'sounds') #sets the directory for images
         self.wall_img = pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
         self.coin_img = pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
         self.pickup_snd = pg.mixer.Sound(path.join(self.snd_dir, "pickup.mp3"))
-        self.map = Map(path.join(self.game_dir, self.levels[self.current_level_index])) #loads map using data from current level, look at new for more
+        self.map = Map(path.join(self.level_dir, self.levels[self.current_level_index]))
         print('data is loaded')
 
     def load_current_level(self):
-        self.map = Map(path.join(self.game_dir, self.levels[self.current_level_index]))
+        # reloads the map whenever the current level index changes
+        self.map = Map(path.join(self.level_dir, self.levels[self.current_level_index]))
 
     def next_level(self):
+        # advances to the next level if one exists, otherwise transitions to the win state
         if self.current_level_index < len(self.levels) - 1:
             self.current_level_index += 1
             self.load_current_level()
             self.new()
             self.state_machine.transition("playing")
         else:
-            self.state_machine.transition("game_over")
+            self.state_machine.transition("game_won")
+
+
 
     
     def new(self):
@@ -126,6 +207,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
+        # restarts the background music whenever a fresh level is built
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
         pg.mixer.music.play(loops=-1)
 
@@ -141,6 +223,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw()
             
     def events(self):
+        # all global keyboard and window events are handled here
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 if self.playing:
@@ -167,6 +250,18 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "start":
                         self.state_machine.transition("playing")
+                elif event.key == pg.K_TAB:
+                    # manual save hotkey for testing the save system
+                    self.save_progress()
+                elif event.key == pg.K_r:
+                    current_state = self.state_machine.current_state.get_state_name()
+                    if current_state == "game_won":
+                        # winning can reset the game back to level one and the start screen
+                        self.current_level_index = 0
+                        self.load_current_level()
+                        self.new()
+                        self.state_machine.transition("start")
+
 
     
     
@@ -178,6 +273,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
     
 
     def update(self):
+        # lets the active game-flow state decide what should update this frame
         self.state_machine.update()
         # self.all_sprites.update() #updating sprites for dynamics (movement of player)
         # if self.camera is not None: #if the camera exists
@@ -193,6 +289,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         for sprite in self.all_sprites: #looks through all sprites
             self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
         
+        # draw overlay text after the world so state-specific UI appears on top
         current_state = self.state_machine.current_state.get_state_name()
 
         if current_state == "paused":
@@ -206,6 +303,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         if current_state == "start":
             self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)
             self.draw_text("Press ENTER to start", 28, WHITE, WIDTH / 2, HEIGHT / 2)
+        if current_state == "game_won":
+            self.draw_text("YOU WIN", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
+            self.draw_text("Press R to restart", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 30)
 
 
         pg.display.flip()
