@@ -36,7 +36,7 @@ All TODOS to make it easy to keep track
 
 '''
 #Date of Last Update
-__updated__ = '2026-03-23 12:29:52'
+__updated__ = '2026-03-25 11:06:23'
 
 
 import pygame as pg
@@ -46,6 +46,9 @@ from os import path
 from settings import *
 from sprites import *
 from utils import *
+from state_machine import StateMachine
+from game_states import GamePlayingState, GamePausedState, GameOverState
+
 
 #imports
 
@@ -64,6 +67,14 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.game_cooldown = Cooldown(3000) #in milliseconds
         self.camera = None
         self.load_data()
+        self.state_machine = StateMachine()
+        self.game_states = [
+            GamePlayingState(self),
+            GamePausedState(self),
+            GameOverState(self),
+        ]
+        self.state_machine.start_machine(self.game_states)
+
 
     # a method is a function tied to a Class
 
@@ -106,46 +117,48 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.dt = (
                 self.clock.tick(FPS) / 1000
             )  # divided by 1000 bc we want milliseconds, this is delta time
-            self.quit() #this allows for quitting
+            
             self.events() #these three functions are constantly called, allowing for things to be drawn, evenets to happen, constantly updating
             self.update()
             self.draw()
             
     def events(self):
-        # for event in pg.event.get():
-        #     if (
-        #         event.type == pg.MOUSEBUTTONUP
-        #     ):  # this allows us to utilize releasing the mouse button as an input or condition
-        #         print("i can get mouse input")
-        #         print(event.pos)
-        #     if event.type == pg.KEYDOWN:  # Same here but for when the key is pressed
-        #         if event.key == pg.K_k:
-        #             print("i can determine when keys are pressed")
-        #     if event.type == pg.KEYUP:  # Same here but for when the key is released
-        #         if event.key == pg.K_k:
-        #             print("i can determine when keys are released")
-        pass
-            
-
-                    
-
-    def quit(self):
         for event in pg.event.get():
-            if event.type == pg.KEYDOWN: #This allows to quit on the press of the key escape
-                if event.key == pg.K_ESCAPE:
-                    pg.QUIT
-                    if self.playing:
-                        self.playing = False
-                    self.running = False
-            if (event.type == pg.QUIT):  # allows quitting, if playing stops playing, and it stops running
+            if event.type == pg.QUIT:
                 if self.playing:
                     self.playing = False
                 self.running = False
 
+            elif event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    if self.playing:
+                        self.playing = False
+                    self.running = False
+
+                elif event.key == pg.K_p:
+                    current_state = self.state_machine.current_state.get_state_name()
+                    if current_state == "playing":
+                        self.state_machine.transition("paused")
+                    elif current_state == "paused":
+                        self.state_machine.transition("playing")
+
+                elif event.key == pg.K_g:
+                    self.state_machine.transition("game_over")
+
+    
+    
+
+            
+
+                    
+
+    
+
     def update(self):
-        self.all_sprites.update() #updating sprites for dynamics (movement of player)
-        if self.camera is not None: #if the camera exists
-            self.camera.update(self.player) #the camera is updating for player, so it locks onto player
+        self.state_machine.update()
+        # self.all_sprites.update() #updating sprites for dynamics (movement of player)
+        # if self.camera is not None: #if the camera exists
+        #     self.camera.update(self.player) #the camera is updating for player, so it locks onto player
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
@@ -156,6 +169,16 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
         for sprite in self.all_sprites: #looks through all sprites
             self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
+        
+        current_state = self.state_machine.current_state.get_state_name()
+
+        if current_state == "paused":
+            self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
+            print("paused")
+
+        if current_state == "game_over":
+            self.draw_text("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
+            print("game_over")
 
         pg.display.flip()
 
