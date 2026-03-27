@@ -56,6 +56,7 @@ class Player(Sprite):
         self.sprinting = False
         self.walking = False
         self.on_ground = False
+        self.health = 100
         self.last_update = 0
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)

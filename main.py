@@ -33,8 +33,8 @@ All TODOS to make it easy to keep track
 #TODO Fix porjectiles to actually spawn on the player
 
 '''
-#Date of Last Update
-__updated__ = '2026-03-25 12:46:02'
+#Date of Last Update 24hr time
+__updated__ = '2026-03-27 08:57:29'
 
 
 import pygame as pg
@@ -96,11 +96,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def get_save_data(self):
         # packages the minimum progress data needed to restore the game later
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "current_level_index": self.current_level_index,
-            "current_level_file": self.levels[self.current_level_index],
-        }
+        return {"timestamp": datetime.now().isoformat(),"current_level_index": self.current_level_index,"current_level_file": self.levels[self.current_level_index],}
 
     def save_progress(self):
         # writes a new timestamped save file, then removes older extras
@@ -159,9 +155,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # sets the directory for level files so maps can be organized in their own folder
         self.level_dir = path.join(self.game_dir, "levels")
         # automatically builds the level list by reading every txt file in the levels folder
-        self.levels = sorted(
-            [name for name in os.listdir(self.level_dir) if name.endswith(".txt")]
-        )       
+        self.levels = sorted([name for name in os.listdir(self.level_dir) if name.endswith(".txt")])       
 
         self.img_dir = path.join(self.game_dir, 'images') #sets the directory for images
         self.snd_dir = path.join(self.game_dir, 'sounds') #sets the directory for images
@@ -189,7 +183,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     
     def new(self):
-        self.all_sprites = pg.sprite.Group() # these lines of code (55-59) are using sprite's grouping function and tying them to variables, so I can call upon different "groups (suchs as mobs, player, or Walls)" seperately
+        self.all_sprites = pg.sprite.Group() # these lines of code are using sprite's grouping function and tying them to variables, so I can call upon different "groups (suchs as mobs, player, or Walls)" seperately
         self.all_players = pg.sprite.Group()
         self.all_mobs = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
@@ -237,17 +231,17 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         self.playing = False
                     self.running = False
 
-                elif event.key == pg.K_p:
+                elif event.key == pg.K_p: #transition into or out of pause state
                     current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "playing":
                         self.state_machine.transition("paused")
                     elif current_state == "paused":
                         self.state_machine.transition("playing")
 
-                elif event.key == pg.K_g:
+                elif event.key == pg.K_g: #transition into game over (test)
                     self.state_machine.transition("game_over")
 
-                elif event.key == pg.K_RETURN:
+                elif event.key == pg.K_RETURN: #transition into playing state
                     current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "start":
                         self.state_machine.transition("playing")
@@ -282,6 +276,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
+        draw_health_bar(self.screen, 10, 10, self.player.health)
         # self.draw_text("Hello World", 24, WHITE, WIDTH / 2, TILESIZE)  # calling of draw text
         # self.draw_text(str(self.dt), 24, WHITE, WIDTH / 2, HEIGHT / 4)  # calling of draw text
         # self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH / 2, HEIGHT / 3) # calling of draw text
