@@ -30,10 +30,11 @@ def collide_with_walls(sprite, group, dir): # A function that checks for collisi
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
         if hits:
             # print("collided with wall in the y dir")
-            if hits[0].rect.centery > sprite.hit_rect.centery: #if the first item in the list of things that collided's center pos is greater then the sprite we are checking (player) y-dir
-                sprite.pos.y = hits[0].rect.top - sprite.hit_rect.width/2 #the pos of sprite (player) will bounce upward a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
-            if hits[0].rect.centery < sprite.hit_rect.centery: #if the first item in the list of things that collided's center pos is greater then the sprite we are checking (player) y-dir
-                sprite.pos.y = hits[0].rect.bottom + sprite.hit_rect.width/2 #the pos of sprite (player) will bounce downward by a factor of the hitbox of the thing it collided with - player's hitbox divided by 2
+            if sprite.vel.y > 0 and hits[0].rect.centery > sprite.hit_rect.centery: #only count as landing if the sprite was falling onto the tile
+                sprite.pos.y = hits[0].rect.top - sprite.hit_rect.height/2 #move the sprite so it stands on top of the tile it landed on
+                sprite.on_ground = True
+            elif sprite.vel.y < 0 and hits[0].rect.centery < sprite.hit_rect.centery: #if the sprite was moving upward, treat the collision as a head hit instead
+                sprite.pos.y = hits[0].rect.bottom + sprite.hit_rect.height/2 #push the sprite back below the tile it hit from underneath
             sprite.vel.y = 0 #setting the original velocity to 0
             sprite.hit_rect.centery = sprite.pos.y # setting the center of the player to be the position
             
@@ -51,9 +52,10 @@ class Player(Sprite):
         self.rect = self.image.get_rect() #creating rect for vector math
         self.vel = vec(0,0) #velocity
         self.pos = vec(x,y) * TILESIZE #postion
-        self.hit_rect = PLAYER_HIT_RECT
+        self.hit_rect = PLAYER_HIT_RECT.copy()
         self.sprinting = False
         self.walking = False
+        self.on_ground = False
         self.last_update = 0
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
@@ -65,19 +67,20 @@ class Player(Sprite):
 
         
     def get_key_movement(self): #function for movement
-        self.vel = vec(0,0) #making sure player doesnt constantly move
+        self.vel.x = 0 #only reset x movement so gravity can keep affecting y velocity
         keys = pg.key.get_pressed() #gets the keys pressed
-        
+        speed = PLAYER_SPEED
+        if self.sprinting:
+            speed = PLAYER_SPRINT_SPEED
+
         if keys[pg.K_a]: #if tree, looks for specific keys, changes vel only on these keys (wasd)
-            self.vel.x = -PLAYER_SPEED
+            self.vel.x = -speed
         if keys[pg.K_d]:
-            self.vel.x = PLAYER_SPEED
-        if keys[pg.K_w]:
-            self.vel.y = -PLAYER_SPEED
-        if keys[pg.K_s]:
-            self.vel.y = PLAYER_SPEED
-        if self.vel.x != 0 and self.vel.y != 0:
-            self.vel *= 0.7071 #a^2+b^2=c^2 so if a = and b = 1 then c = sqrt(2), so we multiply by root 2, prevents movement being faster diagonally
+            self.vel.x = speed
+        if keys[pg.K_w] and self.on_ground:
+            self.vel.y = JUMP_VELOCITY
+            self.on_ground = False
+
     def get_key_projectile(self): #looking for key press of specific key, and will insanciate a projectile when that key is pressed
         keys = pg.key.get_pressed()
         if keys[pg.K_f]:
@@ -105,21 +108,12 @@ class Player(Sprite):
     
     def state(self): #made a method that gets state, better for organization purposes
         keys = pg.key.get_pressed() #gets the keys pressed
-        if self.vel: #if player moves
+        if keys[pg.K_a] or keys[pg.K_d]: #base movement state on current input instead of last frame's velocity
             self.walking = True
-            # self.state_machine.transition("move")
         else:
             self.walking = False
-            # self.state_machine.transition("idle")
-        if keys[pg.K_LSHIFT]: #if the left shift key is pressed down
-            if self.sprinting_cd.ready():
-                self.sprinting_cd.start()
-                self.sprinting = True
-            else:
-                print("Cooldown active")
-        else:
-            self.sprinting = False
-    
+        self.sprinting = keys[pg.K_LSHIFT] and self.walking #sprint should only affect horizontal movement while walking
+
     def animate(self): #I made my spritesheet differently, making each row a state, rather then a charencter or thing
         now = pg.time.get_ticks() #gets current time
         if not self.sprinting and not self.walking: #only while static, need to update self.walking and self.jumping
@@ -139,42 +133,47 @@ class Player(Sprite):
                 self.image = self.walking_frames[self.current_frame] #sets the current image to be that frame
                 self.rect = self.image.get_rect()
                 self.rect.bottom = bottom
-        
-        if self.sprinting and self.walking: #when wprinting while walking (can only sprint while also walking)
-            self.vel.x = self.vel.x * PLAYER_SPRINT_SPEED/PLAYER_SPEED #set both velocitys to sprint speed by multiplying existing values so they keep negatives, this a way to remove normal player speed because the velocity is player speed, and anything divided by itself is 1, leaving player spritn speed as the only thing remaining
-            self.vel.y = self.vel.y * PLAYER_SPRINT_SPEED/PLAYER_SPEED
-            if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
-                self.last_update = now #updates now
-                self.current_frame = (self.current_frame + 1) % len(self.sprinting_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
+        if self.sprinting and self.walking: #only when sprinting, use the sprinting animation row
+            if now - self.last_update > 200: #slightly faster frame timing helps sprinting read visually
+                self.last_update = now
+                self.current_frame = (self.current_frame + 1) % len(self.sprinting_frames)
                 bottom = self.rect.bottom
-                self.image = self.sprinting_frames[self.current_frame] #sets the current image to be that frame
+                self.image = self.sprinting_frames[self.current_frame]
                 self.rect = self.image.get_rect()
                 self.rect.bottom = bottom
-        
-    def update(self): #constantly updating and checking for this
-        self.get_key_movement() #callign getkey and animate
+
+    def update(self): #frame-by-frame player update for movement, physics, and objective checks
+        self.state() #refresh walking and sprint flags before movement speed is chosen
+        self.get_key_movement()
         self.get_key_projectile()
-        self.state()
         # active player state runs its transition logic every frame
         self.state_machine.update()
-        self.animate()
-        self.rect.center = self.pos #these next couple lines of code are what allow for movement and change of position
-        self.pos += self.vel * self.game.dt
-        
+
+        self.vel.y += GRAVITY * self.game.dt #gravity only affects vertical speed
+        if self.vel.y > MAX_FALL_SPEED:
+            self.vel.y = MAX_FALL_SPEED
+
+        self.pos.x += self.vel.x * self.game.dt
         self.hit_rect.centerx = self.pos.x #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
+
+        self.on_ground = False #reset grounded state before checking vertical collision this frame
+        self.pos.y += self.vel.y * self.game.dt
         self.hit_rect.centery = self.pos.y #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
+        self.animate()
+
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
             # coin pickup belongs to the game-wide flow, so it triggers the game state machine
             self.game.pickup_snd.play()
             self.game.state_machine.transition("level_clear")
+
             
 
         
-# Enemy sprite class that currently moves toward the player.
+# Enemy sprite class that currently moves toward the player. Will soon use pathfinding to hunt player
 class Mob(Sprite): 
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_mobs #group

@@ -2,7 +2,6 @@ import pygame as pg
 from settings import *
 
 
-#This class allows for loading up a "world" via data in txt format (look at level1.txt for reference on what Im talking about)
 # Reads a tilemap text file and stores both the raw layout and map dimensions.
 class Map:
     def __init__(self, filename):
@@ -35,8 +34,7 @@ class Spritesheet:
 
 
 
-# This class creates a countdown timer for a cooldown
-# Simple reusable timer class for cooldown-based actions.
+# Simple reusable timer class.
 class Cooldown:
     def __init__(self, time):
         self.start_time = 0
