@@ -22,19 +22,20 @@ https://incompetech.com/music/royalty-free/
 
 """
 '''
-All TODOS to make it easy to keep track
+#TODO Fix all bugs
+#TODO A* pathfinding
+#TODO Rough gameplay mehanics and levels
+#TODO One Boss level (do all of this for alpha)
+#TODO from then, expand on evels and add all gimmiks
+#TODO Add actual textures and stprites, make stuff look and sound good
+#TODO Lastly LORE
 
 
-#TODO: update mob's movement, have it chase player, if collision game over, if coin is collected mob stops, level is completed.   
 
-#TODO Add textures to all sprites, update wall texture        
-
-
-#TODO Fix porjectiles to actually spawn on the player
 
 '''
 #Date of Last Update 24hr time
-__updated__ = '2026-03-27 08:57:29'
+__updated__ = '2026-03-27 09:05:13'
 
 
 import pygame as pg
@@ -202,7 +203,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
-        # restarts the background music whenever a fresh level is built
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
         pg.mixer.music.play(loops=-1)
 
@@ -276,25 +276,25 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
-        draw_health_bar(self.screen, 10, 10, self.player.health)
+        current_state = self.state_machine.current_state.get_state_name()
+
+        if current_state != "start":
+            draw_health_bar(self.screen, 10, 10, self.player.health)
         # self.draw_text("Hello World", 24, WHITE, WIDTH / 2, TILESIZE)  # calling of draw text
         # self.draw_text(str(self.dt), 24, WHITE, WIDTH / 2, HEIGHT / 4)  # calling of draw text
         # self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH / 2, HEIGHT / 3) # calling of draw text
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
         
-        for sprite in self.all_sprites: #looks through all sprites
-            self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
+        if current_state != "start":
+            for sprite in self.all_sprites: #looks through all sprites
+                self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
         
         # draw overlay text after the world so state-specific UI appears on top
-        current_state = self.state_machine.current_state.get_state_name()
-
         if current_state == "paused":
             self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
-            print("paused")
 
         if current_state == "game_over":
             self.draw_text("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
-            print("game_over")
         
         if current_state == "start":
             self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)

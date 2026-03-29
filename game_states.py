@@ -19,9 +19,11 @@ class GamePlayingState(State):
 
     def update(self):
         # only while playing do we update sprites and the camera
+        self.game.all_sprites.update()
         if self.game.camera is not None:
             self.game.camera.update(self.game.player)
-        self.game.all_sprites.update()
+        
+        
 
 
 # State used when gameplay is frozen but the game is still open.

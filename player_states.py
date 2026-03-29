@@ -12,16 +12,17 @@ class PlayerIdleState(State):
         return "idle"
 
     def enter(self):
-        pass
+        self.player.walking = False
+        self.player.sprinting = False
 
     def exit(self):
         pass
 
     def update(self):
         # idle changes to sprint or move as soon as the player starts moving
-        if self.player.sprinting and self.player.walking:
+        if self.player.wants_to_sprint():
             self.player.state_machine.transition("sprint")
-        elif self.player.walking:
+        elif self.player.wants_to_move():
             self.player.state_machine.transition("move")
 
 
@@ -34,16 +35,17 @@ class PlayerMoveState(State):
         return "move"
 
     def enter(self):
-        pass
+        self.player.walking = True
+        self.player.sprinting = False
 
     def exit(self):
         pass
 
     def update(self):
         # move changes either to sprint if shift is active or back to idle if motion stops
-        if self.player.sprinting and self.player.walking:
+        if self.player.wants_to_sprint():
             self.player.state_machine.transition("sprint")
-        elif not self.player.walking:
+        elif not self.player.wants_to_move():
             self.player.state_machine.transition("idle")
 
 
@@ -56,14 +58,14 @@ class PlayerSprintState(State):
         return "sprint"
 
     def enter(self):
-        pass
+        self.player.start_sprint()
 
     def exit(self):
-        pass
+        self.player.stop_sprint()
 
     def update(self):
         # sprint drops to idle if movement stops, otherwise falls back to move when sprint ends
-        if not self.player.walking:
+        if not self.player.wants_to_move():
             self.player.state_machine.transition("idle")
-        elif not self.player.sprinting:
+        elif not self.player.should_keep_sprinting():
             self.player.state_machine.transition("move")

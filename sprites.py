@@ -57,10 +57,15 @@ class Player(Sprite):
         self.walking = False
         self.on_ground = False
         self.health = 100
+        self.move_dir = 0
+        self.jump_pressed = False
+        self.sprint_held = False
         self.last_update = 0
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
-        self.sprinting_cd = Cooldown(3000)
+        self.sprint_reset_cd = Cooldown(SPRINT_RESET_TIME)
+        self.sprint_cooling_down = False
+        self.sprint_start_time = 0
         # player has its own movement-focused state machine separate from the game-wide one
         self.state_machine = StateMachine()
         self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self)]
@@ -69,16 +74,15 @@ class Player(Sprite):
         
     def get_key_movement(self): #function for movement
         self.vel.x = 0 #only reset x movement so gravity can keep affecting y velocity
-        keys = pg.key.get_pressed() #gets the keys pressed
         speed = PLAYER_SPEED
         if self.sprinting:
             speed = PLAYER_SPRINT_SPEED
 
-        if keys[pg.K_a]: #if tree, looks for specific keys, changes vel only on these keys (wasd)
+        if self.move_dir < 0: #move left using the input direction cached earlier this frame
             self.vel.x = -speed
-        if keys[pg.K_d]:
+        if self.move_dir > 0:
             self.vel.x = speed
-        if keys[pg.K_w] and self.on_ground:
+        if self.jump_pressed and self.on_ground:
             self.vel.y = JUMP_VELOCITY
             self.on_ground = False
 
@@ -106,14 +110,44 @@ class Player(Sprite):
             frame.set_colorkey(BLACK)
         for frame in self.sprinting_frames:
             frame.set_colorkey(BLACK)
-    
-    def state(self): #made a method that gets state, better for organization purposes
+
+    def update_input_flags(self): #read current controls once so the state machine can decide movement state
         keys = pg.key.get_pressed() #gets the keys pressed
-        if keys[pg.K_a] or keys[pg.K_d]: #base movement state on current input instead of last frame's velocity
+        self.move_dir = 0
+        if keys[pg.K_a]:
+            self.move_dir -= 1
+        if keys[pg.K_d]:
+            self.move_dir += 1
+        self.jump_pressed = keys[pg.K_w]
+        self.sprint_held = keys[pg.K_LSHIFT]
+
+        if self.sprint_cooling_down and self.sprint_reset_cd.ready(): #once cooldown finishes, sprint becomes available again
+            self.sprint_cooling_down = False
+
+    def wants_to_move(self): #movement states use this to determine whether the player intends to move horizontally
+        return self.move_dir != 0
+
+    def wants_to_sprint(self): #sprint can only start while moving and while its reset cooldown is inactive
+        return self.sprint_held and self.wants_to_move() and not self.sprint_cooling_down
+
+    def start_sprint(self): #called by the sprint state when sprinting begins
+        if not self.sprinting:
+            self.sprinting = True
             self.walking = True
-        else:
-            self.walking = False
-        self.sprinting = keys[pg.K_LSHIFT] and self.walking #sprint should only affect horizontal movement while walking
+            self.sprint_start_time = pg.time.get_ticks()
+
+    def stop_sprint(self): #called when leaving sprint so cooldown begins cleanly once
+        if self.sprinting:
+            self.sprinting = False
+            self.sprint_cooling_down = True
+            self.sprint_reset_cd.start()
+
+    def should_keep_sprinting(self): #active sprint ends when its duration expires or input is released
+        if not self.sprinting:
+            return False
+        if not self.sprint_held:
+            return False
+        return pg.time.get_ticks() - self.sprint_start_time < SPRINT_DURATION
 
     def animate(self): #I made my spritesheet differently, making each row a state, rather then a charencter or thing
         now = pg.time.get_ticks() #gets current time
@@ -121,34 +155,33 @@ class Player(Sprite):
             if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
                 self.last_update = now #updates now
                 self.current_frame = (self.current_frame + 1) % len(self.standing_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
-                bottom = self.rect.bottom
+                center = self.rect.center
                 self.image = self.standing_frames[self.current_frame] #sets the current image to be that frame
                 self.rect = self.image.get_rect()
-                self.rect.bottom = bottom
+                self.rect.center = center
         
         if self.walking and not self.sprinting: #only when walking, works the same as standing frames
             if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
                 self.last_update = now #updates now
                 self.current_frame = (self.current_frame + 1) % len(self.walking_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
-                bottom = self.rect.bottom
+                center = self.rect.center
                 self.image = self.walking_frames[self.current_frame] #sets the current image to be that frame
                 self.rect = self.image.get_rect()
-                self.rect.bottom = bottom
+                self.rect.center = center
         if self.sprinting and self.walking: #only when sprinting, use the sprinting animation row
             if now - self.last_update > 200: #slightly faster frame timing helps sprinting read visually
                 self.last_update = now
                 self.current_frame = (self.current_frame + 1) % len(self.sprinting_frames)
-                bottom = self.rect.bottom
+                center = self.rect.center
                 self.image = self.sprinting_frames[self.current_frame]
                 self.rect = self.image.get_rect()
-                self.rect.bottom = bottom
+                self.rect.center = center
 
     def update(self): #frame-by-frame player update for movement, physics, and objective checks
-        self.state() #refresh walking and sprint flags before movement speed is chosen
+        self.update_input_flags() #refresh player input before the state machine decides how to move
+        self.state_machine.update() #the player state machine now replaces the old state() method
         self.get_key_movement()
         self.get_key_projectile()
-        # active player state runs its transition logic every frame
-        self.state_machine.update()
 
         self.vel.y += GRAVITY * self.game.dt #gravity only affects vertical speed
         if self.vel.y > MAX_FALL_SPEED:
