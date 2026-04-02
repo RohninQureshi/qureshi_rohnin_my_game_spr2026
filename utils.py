@@ -10,12 +10,15 @@ class Map:
         #open a specific file and close it with 'with'
         with open(filename, 'rt') as f:
             for line in f:
+                # strip removes the newline so each map row is only tile characters
                 self.data.append(line.strip())
         
         
         #        
+        # tile dimensions count how many text characters wide and tall the map is
         self.tilewidth = len(self.data[0])
         self.tileheight = len(self.data)
+        # pixel dimensions convert tile counts into actual world size for camera and collision logic
         self.width = self.tilewidth * TILESIZE
         self.height = self.tileheight * TILESIZE
 
@@ -23,12 +26,14 @@ class Map:
 # Loads an image file and slices out individual frames from a sprite sheet.
 class Spritesheet:
     def __init__(self, filename):
+        # convert makes the sheet match the display format for faster blitting later
         self.spritesheet = pg.image.load(filename).convert()
 
     def get_image(self, x, y, width, height):
         image = pg.Surface((width, height)) #creates an image
         image.blit(self.spritesheet, (0,0), (x, y, width, height)) #updates the actual image to be from sprite sheet
         new_image = pg.transform.scale(image, (width, height)) #scales the image to be correct, for resolution
+        # return the cropped frame so player animation code can store it in a list
         image = new_image
         return image
 
@@ -42,6 +47,7 @@ class Cooldown:
         self.time = time
 
     def start(self):
+        # stores the moment the cooldown began so later checks can compare against it
         self.start_time = pg.time.get_ticks()
 
     def ready(self):
@@ -84,11 +90,13 @@ class Camera:
 def draw_health_bar(surf,x,y,pct):
     if pct<0:
         pct = 0
+    # bar size is kept constant so only the red fill width changes with health
     BAR_LENGTH = 100
     BAR_HEIGHT = 10
     fill = (pct/100)*BAR_LENGTH
     outline_rect = pg.Rect(x, y, BAR_LENGTH, BAR_HEIGHT)
     fill_rect = pg.Rect(x, y, fill, BAR_HEIGHT)
+    # draw the red fill first, then draw the white border on top for readability
     pg.draw.rect(surf, RED, fill_rect)
     pg.draw.rect(surf, WHITE, outline_rect, 2)
 

@@ -4,15 +4,19 @@ is_log_enabled: bool = False
 class State:
     # Base state class; concrete states override whichever methods they need.
     def enter(self):
+        # enter is called once when a state becomes active
         pass
 
     def exit(self):
+        # exit is called once right before the machine switches away from a state
         pass
 
     def update(self):
+        # update is called every frame while the state remains active
         pass
 
     def get_state_name(self):
+        # concrete states return the string used to register them in the machine
         return ""
 
 # Generic state machine that stores states and handles transitions between them.
@@ -46,6 +50,7 @@ class StateMachine:
     def update(self):
         # every frame, delegate behavior to the active state
         if self.current_state is not None:
+            # if no current state exists yet, update safely does nothing
             self.current_state.update()
 
     def transition(self, new_state_name):

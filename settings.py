@@ -37,6 +37,6 @@ MOB_PATH_RECALC_MS = 250
 
 
 
-#projectile values
+#projectile values 
 PROJECTILE_SPEED = 500
 PROJECTILE_LIFETIME = 750  # milliseconds

@@ -8,6 +8,7 @@ class GamePlayingState(State):
         self.game = game
 
     def get_state_name(self):
+        # this key is how the main state machine refers to the active gameplay state
         return "playing"
 
     def enter(self):
@@ -15,6 +16,7 @@ class GamePlayingState(State):
         self.game.playing = True
 
     def exit(self):
+        # playing does not need teardown here because pause / win states handle their own setup
         pass
 
     def update(self):
@@ -32,6 +34,7 @@ class GamePausedState(State):
         self.game = game
 
     def get_state_name(self):
+        # paused is a distinct flow state so gameplay updates can be skipped cleanly
         return "paused"
 
     def enter(self):
@@ -39,6 +42,7 @@ class GamePausedState(State):
         self.game.playing = False
 
     def exit(self):
+        # paused has no cleanup because resuming just transitions back to playing
         pass
 
     def update(self):
@@ -53,6 +57,7 @@ class GameOverState(State):
         self.game = game
 
     def get_state_name(self):
+        # game_over identifies the loss screen in the shared game state machine
         return "game_over"
 
     def enter(self):
@@ -60,6 +65,7 @@ class GameOverState(State):
         self.game.playing = False
 
     def exit(self):
+        # no extra cleanup is needed when leaving the game over screen
         pass
 
     def update(self):
@@ -74,6 +80,7 @@ class GameStartState(State):
         self.game = game
 
     def get_state_name(self):
+        # start is the title screen key used before gameplay begins
         return "start"
 
     def enter(self):
@@ -81,6 +88,7 @@ class GameStartState(State):
         self.game.playing = False
 
     def exit(self):
+        # start screen also does not need teardown logic when Enter is pressed
         pass
 
     def update(self):
@@ -94,6 +102,7 @@ class GameLevelClearState(State):
         self.game = game
 
     def get_state_name(self):
+        # level_clear is a short transition state, not a long-lived gameplay screen
         return "level_clear"
 
     def enter(self):
@@ -101,6 +110,7 @@ class GameLevelClearState(State):
         self.game.next_level()
 
     def exit(self):
+        # this state finishes its work in enter, so exit remains empty
         pass
 
     def update(self):
@@ -115,6 +125,7 @@ class GameWonState(State):
         self.game = game
 
     def get_state_name(self):
+        # game_won marks the final completion screen after the last level
         return "game_won"
 
     def enter(self):
@@ -122,6 +133,7 @@ class GameWonState(State):
         self.game.playing = False
 
     def exit(self):
+        # restart input handles the reset, so exit does not need to do anything special
         pass
 
     def update(self):
