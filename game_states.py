@@ -1,3 +1,5 @@
+import pygame as pg
+from settings import *
 from state_machine import State
 
 
@@ -23,9 +25,22 @@ class GamePlayingState(State):
         # only while playing do we update sprites and the camera
         self.game.all_sprites.update()
         if self.game.camera is not None:
+            # camera follows the player only during active gameplay
             self.game.camera.update(self.game.player)
-        
-        
+        # projectiles remove mobs on contact, giving shooting an actual gameplay purpose
+        # both the projectile and the mob are killed so a single shot cannot pass through multiple enemies
+        pg.sprite.groupcollide(self.game.all_projectiles, self.game.all_mobs, True, True)
+
+        # touching a mob damages the player, but a cooldown prevents instant health deletion
+        mob_hits = pg.sprite.spritecollide(self.game.player, self.game.all_mobs, False)
+        if mob_hits and self.game.mob_damage_cd.ready():
+            # damage is subtracted from the player object so the existing health bar updates automatically
+            self.game.player.health -= MOB_DAMAGE
+            # start the cooldown after a successful hit so contact damage happens in pulses
+            self.game.mob_damage_cd.start()
+            if self.game.player.health <= 0:
+                # health reaching zero hands control to the game flow state machine
+                self.game.state_machine.transition("game_over")
 
 
 # State used when gameplay is frozen but the game is still open.

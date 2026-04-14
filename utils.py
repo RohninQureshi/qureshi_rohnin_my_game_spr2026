@@ -88,7 +88,9 @@ class Camera:
         self.camera = pg.Rect(x, y, self.world_width, self.world_height)
         
 def draw_health_bar(surf,x,y,pct):
+    # health is passed in as a percentage from 0 to 100
     if pct<0:
+        # clamp negative values so the fill rectangle never draws backwards
         pct = 0
     # bar size is kept constant so only the red fill width changes with health
     BAR_LENGTH = 100

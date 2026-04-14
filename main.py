@@ -19,17 +19,9 @@ https://www.bfxr.net/
 # music:
 https://incompetech.com/music/royalty-free/
 
-
 """
-'''
-
-
-
-
-
-'''
 #Date of Last Update 24hr time
-__updated__ = '2026-04-01 23:52:16'
+__updated__ = '2026-04-13 13:26:10'
 
 
 import pygame as pg
@@ -46,7 +38,7 @@ from datetime import datetime
 
 
 
-#imports
+# imports above bring in pygame, file tools, settings constants, sprites, helpers, states, and json saving
 
 
 # the game class that will be instantiated in order to run the game...
@@ -62,7 +54,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.clock = pg.time.Clock()
         self.running = True #creating variables for the state of the game, and they are boolean so the game cant be half running for example
         self.playing = True
+        # cooldown objects track timed actions without needing extra frame counters
         self.game_cooldown = Cooldown(3000) #in milliseconds
+        self.mob_damage_cd = Cooldown(MOB_DAMAGE_COOLDOWN)
+        # this makes mob damage available immediately instead of waiting once at startup
+        self.mob_damage_cd.start_time = -MOB_DAMAGE_COOLDOWN
+        # these level fields are set before loading data so saves can change the starting level
         self.camera = None
         self.current_level_index = 0
         self.load_data()
@@ -163,6 +160,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # sets the directory for level files so maps can be organized in their own folder
         self.level_dir = path.join(self.game_dir, "levels")
         # automatically builds the level list by reading every txt file in the levels folder
+        # this means new level files work without manually editing a list in code
         self.levels = sorted([name for name in os.listdir(self.level_dir) if name.endswith(".txt")])       
 
         self.img_dir = path.join(self.game_dir, 'images') #sets the directory for images
@@ -193,10 +191,20 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             # if there is no next level left, hand off to the win screen state
             self.state_machine.transition("game_won")
 
+    def restart_from_title(self):
+        # reset the level index so a restart always begins from the first level
+        self.current_level_index = 0
+        self.load_current_level()
+        # rebuild all sprite groups so player health, mobs, coins, and projectiles reset cleanly
+        self.new()
+        # return to the title screen instead of starting gameplay immediately
+        self.state_machine.transition("start")
+
 
 
     
     def new(self):
+        # each new level starts with fresh sprite groups so old level objects disappear
         self.all_sprites = pg.sprite.Group() # these lines of code are using sprite's grouping function and tying them to variables, so I can call upon different "groups (suchs as mobs, player, or Walls)" seperately
         self.all_players = pg.sprite.Group()
         self.all_mobs = pg.sprite.Group()
@@ -209,6 +217,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         for row, tiles in enumerate(self.map.data): #this section of code loads the entities (wall,player,mobs) based upon the map data we made (level1.txt), by enumerating through each cahrecter, and looking at it's value and pos.
             for col, tile, in enumerate(tiles):
                 # each map character spawns a different object into the world
+                # this keeps level design inside text files instead of hardcoding positions
                 if tile == '1':
                     Wall(self, col, row)
                 if tile =='P':
@@ -217,6 +226,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
+        # every fresh level rebuild gives the player full health for a clean level start
+        self.player.health = 100
         # restarting the level also restarts the background music loop for a clean reset
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
         pg.mixer.music.play(loops=-1)
@@ -224,6 +235,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def run(self):
         while self.running:
+            # tick locks the game to FPS and returns the time since the last frame
             self.dt = (
                 self.clock.tick(FPS) / 1000
             )  # divided by 1000 bc we want milliseconds, this is delta time
@@ -270,12 +282,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.save_progress()
                 elif event.key == pg.K_r:
                     current_state = self.state_machine.current_state.get_state_name()
-                    if current_state == "game_won":
-                        # winning can reset the game back to level one and the start screen
-                        self.current_level_index = 0
-                        self.load_current_level()
-                        self.new()
-                        self.state_machine.transition("start")
+                    if current_state == "game_won" or current_state == "game_over":
+                        # R only restarts from finished states, so gameplay cannot be reset by accident mid-run
+                        self.restart_from_title()
 
 
     
@@ -305,8 +314,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
         
         if current_state != "start":
+            # world sprites are drawn before HUD so health and sprint text stay visible on top
             for sprite in self.all_sprites: #looks through all sprites
                 self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
+            # red vignette is drawn over the world before HUD text so damage is visible without hiding the UI
+            self.draw_damage_vignette()
             draw_health_bar(self.screen, 10, 10, self.player.health) # draw overlay text after the world so state-specific UI appears on top
             # sprint timer is part of the HUD layer, so it renders after the world just like the health bar
             self.draw_sprint_timer()
@@ -315,17 +327,40 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
 
         if current_state == "game_over":
-            self.draw_text("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
+            # game over replaces the whole screen with red so the fail state is immediately obvious
+            self.screen.fill(RED)
+            self.draw_text("GAME OVER", 48, BLACK, WIDTH / 2, HEIGHT / 2 - 24)
+            self.draw_text("Press R to restart", 24, BLACK, WIDTH / 2, HEIGHT / 2 + 30)
         
         if current_state == "start":
+            # start screen intentionally skips world drawing so no map sprites show behind the title
             self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)
             self.draw_text("Press ENTER to start", 28, WHITE, WIDTH / 2, HEIGHT / 2)
         if current_state == "game_won":
+            # win screen keeps the restart prompt consistent with the game over screen
             self.draw_text("YOU WIN", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
             self.draw_text("Press R to restart", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 30)
 
 
         pg.display.flip()
+
+    def draw_damage_vignette(self):
+        # missing health controls how strong the edge effect becomes
+        damage_pct = max(0, min(100, 100 - self.player.health)) / 100
+        if damage_pct <= 0:
+            return
+
+        # alpha controls visibility while thickness controls how far the red edges grow inward
+        alpha = int(170 * damage_pct)
+        thickness = int(160 * damage_pct)
+        vignette = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+
+        # draw four transparent red edge rectangles to fake a simple damage vignette
+        pg.draw.rect(vignette, (255, 0, 0, alpha), (0, 0, WIDTH, thickness))
+        pg.draw.rect(vignette, (255, 0, 0, alpha), (0, HEIGHT - thickness, WIDTH, thickness))
+        pg.draw.rect(vignette, (255, 0, 0, alpha), (0, 0, thickness, HEIGHT))
+        pg.draw.rect(vignette, (255, 0, 0, alpha), (WIDTH - thickness, 0, thickness, HEIGHT))
+        self.screen.blit(vignette, (0, 0))
 
     def draw_sprint_timer(self):
         # picks a different HUD message depending on whether sprint is active, cooling down, or ready

@@ -17,6 +17,7 @@ def collide_hit_rect(one, two):  #creating a function so that all classes can us
     return one.hit_rect.colliderect(two.rect)
 
 def collide_with_walls(sprite, group, dir): # A function that checks for collision on the x and y plane, and does physics based on it
+    # collision is split by axis so sliding along walls works instead of snapping diagonally
     if dir == 'x': #checks for dir (only does x)
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
         if hits:
@@ -28,6 +29,7 @@ def collide_with_walls(sprite, group, dir): # A function that checks for collisi
             sprite.vel.x = 0 #setting the original velocity to 0
             sprite.hit_rect.centerx = sprite.pos.x # setting the center of the player to be the position
     if dir == 'y': #checks for dir (only does y)
+        # vertical collision decides whether the sprite landed on a floor or hit its head
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
         if hits:
             # print("collided with wall in the y dir")
@@ -55,6 +57,7 @@ class Player(Sprite):
         self.vel = vec(0,0) #velocity
         self.pos = vec(x,y) * TILESIZE #postion
         self.hit_rect = PLAYER_HIT_RECT.copy()
+        # these booleans and input fields are read by player_states.py instead of one large state method
         self.sprinting = False
         self.walking = False
         self.on_ground = False
@@ -147,6 +150,7 @@ class Player(Sprite):
         return self.move_dir != 0
 
     def wants_to_sprint(self): #sprint can only start while moving and while its reset cooldown is inactive
+        # changing direction does not cancel sprint; only releasing sprint, stopping, or the timer can end it
         return self.sprint_held and self.wants_to_move() and not self.sprint_cooling_down
 
     def start_sprint(self): #called by the sprint state when sprinting begins
@@ -228,6 +232,7 @@ class Player(Sprite):
 
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
+            # collecting the coin is the level goal, so the level clear state handles what comes next
             # coin pickup belongs to the game-wide flow, so it triggers the game state machine
             self.game.pickup_snd.play()
             self.game.state_machine.transition("level_clear")
@@ -247,16 +252,32 @@ class Mob(Sprite):
         self.rect = self.image.get_rect()
         self.vel = vec(0,0)
         self.pos = vec(x,y) * TILESIZE
-        self.hit_rect = MOB_HIT_RECT
+        self.hit_rect = MOB_HIT_RECT.copy()
+        self.on_ground = False
+        # patrol_dir stores which way the mob moves; 1 is right and -1 is left
+        self.patrol_dir = 1
 
     def update(self): 
-        # current mob logic is placeholder movement and still needs to be replaced by real AI
-        self.pos += self.game.player.pos*self.game.dt 
-        self.rect.center = self.pos
-        # keep the same collision pass order so mobs obey solid walls too
-        self.pos += self.vel * self.game.dt
+        # simple alpha-safe enemy behavior: patrol horizontally and reverse when blocked
+        self.vel.x = MOB_SPEED * self.patrol_dir
+        # mobs use the same gravity constants as the player so they land on platforms
+        self.vel.y += GRAVITY * self.game.dt
+        if self.vel.y > MAX_FALL_SPEED:
+            self.vel.y = MAX_FALL_SPEED
+
+        # resolve horizontal movement first so wall hits can flip patrol direction cleanly
+        self.pos.x += self.vel.x * self.game.dt
         self.hit_rect.centerx = self.pos.x #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
+
+        # hitting a wall zeroes x velocity, so reverse direction after the collision response
+        if self.vel.x == 0:
+            # flipping the sign makes the mob walk away from the wall next frame
+            self.patrol_dir *= -1
+
+        # vertical pass lets the mob fall and stand on tiles without affecting patrol direction
+        self.on_ground = False
+        self.pos.y += self.vel.y * self.game.dt
         self.hit_rect.centery = self.pos.y #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
@@ -303,11 +324,14 @@ class Projectile(Sprite):
         self.image = pg.Surface((TILESIZE // 2, TILESIZE // 2))
         self.image.fill(RED)
         self.rect = self.image.get_rect()
+        # projectiles start from the player's center instead of a tile coordinate
         self.pos = vec(x, y)
         self.rect.center = self.pos
         self.hit_rect = self.rect.copy()
         # normalize keeps projectile speed consistent even if direction changes later
+        # PROJECTILE_SPEED from settings controls how fast shots travel across the level
         self.vel = direction.normalize() * PROJECTILE_SPEED
+        # spawn_time is used to remove the projectile after PROJECTILE_LIFETIME expires
         self.spawn_time = pg.time.get_ticks()
 
     def update(self):
