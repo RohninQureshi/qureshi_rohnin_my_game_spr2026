@@ -65,6 +65,29 @@ class GamePausedState(State):
         pass
 
 
+# State used for changing settings from the title screen or pause screen.
+class GameSettingsState(State):
+    def __init__(self, game):
+        # stores the main Game object so settings can change shared game values
+        self.game = game
+
+    def get_state_name(self):
+        # settings is the state machine key for the options menu
+        return "settings"
+
+    def enter(self):
+        # settings freezes gameplay while the player changes options
+        self.game.playing = False
+
+    def exit(self):
+        # settings changes are applied immediately, so there is no exit cleanup
+        pass
+
+    def update(self):
+        # settings only responds to menu input handled in main events
+        pass
+
+
 # State used after the player loses and gameplay should stop.
 class GameOverState(State):
     def __init__(self, game):

@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-13 13:26:10'
+__updated__ = '2026-04-16 08:49:01'
 
 
 import pygame as pg
@@ -62,6 +62,37 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # these level fields are set before loading data so saves can change the starting level
         self.camera = None
         self.current_level_index = 0
+        # settings_previous_state works like a back button for settings opened from start or pause
+        self.settings_previous_state = "start"
+        self.settings_selected = 0
+        self.music_volume = 0.5
+        self.sfx_volume = 0.5
+        # keybinds keep controls in one place so the settings menu can change them
+        self.keybinds = {
+            "jump": pg.K_w,
+            "down": pg.K_s,
+            "left": pg.K_a,
+            "right": pg.K_d,
+            "sprint": pg.K_LSHIFT,
+            "shoot": pg.K_f,
+            "pause": pg.K_p,
+            "settings": pg.K_o,
+        }
+        # these are the controls the player is allowed to change from the settings menu
+        self.rebindable_actions = ["jump", "down", "left", "right", "sprint", "shoot", "pause", "settings"]
+        # labels are separate from keybinds so the menu can show readable names instead of code keys
+        self.keybind_labels = {
+            "jump": "Jump / Aim Up",
+            "down": "Aim Down",
+            "left": "Move Left",
+            "right": "Move Right",
+            "sprint": "Sprint",
+            "shoot": "Shoot",
+            "pause": "Pause",
+            "settings": "Settings",
+        }
+        # None means the settings menu is not waiting for a new key press
+        self.rebinding_action = None
         self.load_data()
         # saves are stored in a folder inside the project directory
         self.save_dir = path.join(self.game_dir, "saves")
@@ -74,6 +105,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             GameStartState(self),
             GamePlayingState(self),
             GamePausedState(self),
+            GameSettingsState(self),
             GameOverState(self),
             GameLevelClearState(self),
             GameWonState(self),
@@ -90,7 +122,16 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
     def get_save_data(self):
         # packages the minimum progress data needed to restore the game later
         # only small serializable values go into the save file, not live sprite objects
-        return {"timestamp": datetime.now().isoformat(),"current_level_index": self.current_level_index,"current_level_file": self.levels[self.current_level_index],}
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "current_level_index": self.current_level_index,
+            "current_level_file": self.levels[self.current_level_index],
+            # volume settings are saved with progress so they persist after closing the game
+            "music_volume": self.music_volume,
+            "sfx_volume": self.sfx_volume,
+            # key constants are integers, so they can be written directly into json
+            "keybinds": self.keybinds,
+        }
 
     def save_progress(self):
         # writes a new timestamped save file, then removes older extras
@@ -131,8 +172,23 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # read the saved level safely and clamp it to the available level list
         saved_index = data.get("current_level_index", 0)
 
+        # only use the saved level if it still exists, so broken saves cannot crash the game
         if 0 <= saved_index < len(self.levels):
             self.current_level_index = saved_index
+
+        # older save files may not have settings yet, so defaults stay if a key is missing
+        self.music_volume = max(0, min(1, data.get("music_volume", self.music_volume)))
+        self.sfx_volume = max(0, min(1, data.get("sfx_volume", self.sfx_volume)))
+
+        saved_keybinds = data.get("keybinds", {})
+        for action in self.rebindable_actions:
+            # only restore known actions so a bad save cannot add random controls
+            # isinstance protects against save files where a key value is missing or not a pygame key number
+            if action in saved_keybinds and isinstance(saved_keybinds[action], int):
+                self.keybinds[action] = saved_keybinds[action]
+
+        # apply restored volume values to the already-loaded pygame sound objects
+        self.apply_audio_settings()
 
     def prune_old_saves(self, keep_count=3):
         # keeps only the newest save files so disk usage does not grow forever
@@ -169,9 +225,17 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.wall_img = pg.image.load(path.join(self.img_dir, 'wall_art.png')).convert_alpha() #wall and coin image are to be deleted and moved to sprite sheet
         self.coin_img = pg.image.load(path.join(self.img_dir, 'coin.png')).convert_alpha()
         self.pickup_snd = pg.mixer.Sound(path.join(self.snd_dir, "pickup.mp3"))
+        # apply saved/default volume settings as soon as sounds are loaded
+        self.pickup_snd.set_volume(self.sfx_volume)
+        pg.mixer.music.set_volume(self.music_volume)
         # load the current level immediately so the first call to new() can build the map
         self.map = Map(path.join(self.level_dir, self.levels[self.current_level_index]))
         print('data is loaded')
+
+    def apply_audio_settings(self):
+        # applies current volume variables to pygame's music channel and sound effects
+        pg.mixer.music.set_volume(self.music_volume)
+        self.pickup_snd.set_volume(self.sfx_volume)
 
     def load_current_level(self):
         # reloads the map whenever the current level index changes
@@ -230,6 +294,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.player.health = 100
         # restarting the level also restarts the background music loop for a clean reset
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
+        pg.mixer.music.set_volume(self.music_volume)
         pg.mixer.music.play(loops=-1)
 
 
@@ -255,36 +320,81 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 self.running = False
 
             elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    # escape is treated as a full quit shortcut from anywhere in the game
-                    if self.playing:
-                        self.playing = False
-                    self.running = False
+                current_state = self.state_machine.current_state.get_state_name()
 
-                elif event.key == pg.K_p: #transition into or out of pause state
+                if current_state == "settings" and self.rebinding_action is not None:
+                    # while rebinding, this key press should only edit controls, not trigger normal commands
+                    if event.key == pg.K_ESCAPE:
+                        # escape cancels rebinding so the player is not forced to choose a key
+                        self.rebinding_action = None
+                    else:
+                        # the next key pressed becomes the new key for the selected action
+                        self.keybinds[self.rebinding_action] = event.key
+                        self.rebinding_action = None
+                        # save immediately so changed controls persist next time the game opens
+                        self.save_progress()
+                    continue
+
+                if event.key == pg.K_ESCAPE:
+                    if current_state == "settings":
+                        # escape from settings returns to the menu state that opened it
+                        self.state_machine.transition(self.settings_previous_state)
+                    else:
+                        # escape is treated as a full quit shortcut outside settings
+                        if self.playing:
+                            self.playing = False
+                        self.running = False
+
+                elif event.key == self.keybinds["pause"]: #transition into or out of pause state
                     # pause only toggles between the two gameplay-related states
-                    current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "playing":
                         self.state_machine.transition("paused")
                     elif current_state == "paused":
                         self.state_machine.transition("playing")
 
-                elif event.key == pg.K_g: #transition into game over (test)
-                    self.state_machine.transition("game_over")
+                elif event.key == self.keybinds["settings"]:
+                    if current_state == "start" or current_state == "paused":
+                        # remember where settings was opened so ESC can return to the correct screen
+                        self.settings_previous_state = current_state
+                        self.state_machine.transition("settings")
+
 
                 elif event.key == pg.K_RETURN: #transition into playing state
-                    current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "start":
                         # enter starts the run from the title screen
                         self.state_machine.transition("playing")
+                    elif current_state == "settings" and self.settings_selected >= 2:
+                        # selecting a keybind option starts waiting for the next key press
+                        # subtract 2 because the first two menu rows are volume settings
+                        action_index = self.settings_selected - 2
+                        self.rebinding_action = self.rebindable_actions[action_index]
                 elif event.key == pg.K_TAB:
                     # manual save hotkey for testing the save system
                     self.save_progress()
                 elif event.key == pg.K_r:
-                    current_state = self.state_machine.current_state.get_state_name()
                     if current_state == "game_won" or current_state == "game_over":
                         # R only restarts from finished states, so gameplay cannot be reset by accident mid-run
                         self.restart_from_title()
+
+                elif event.key == pg.K_UP:
+                    if current_state == "settings":
+                        # wrap selection upward through the settings options
+                        self.settings_selected = (self.settings_selected - 1) % self.settings_option_count()
+
+                elif event.key == pg.K_DOWN:
+                    if current_state == "settings":
+                        # wrap selection downward through the settings options
+                        self.settings_selected = (self.settings_selected + 1) % self.settings_option_count()
+
+                elif event.key == pg.K_LEFT:
+                    if current_state == "settings":
+                        # left lowers the selected setting value
+                        self.change_setting(-0.1)
+
+                elif event.key == pg.K_RIGHT:
+                    if current_state == "settings":
+                        # right raises the selected setting value
+                        self.change_setting(0.1)
 
 
     
@@ -325,6 +435,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
         if current_state == "paused":
             self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
+            self.draw_text(f"Press {self.key_name_for('settings')} for settings", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 35)
+            
 
         if current_state == "game_over":
             # game over replaces the whole screen with red so the fail state is immediately obvious
@@ -336,13 +448,70 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             # start screen intentionally skips world drawing so no map sprites show behind the title
             self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)
             self.draw_text("Press ENTER to start", 28, WHITE, WIDTH / 2, HEIGHT / 2)
+            self.draw_text(f"Press {self.key_name_for('settings')} for settings", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 40)
         if current_state == "game_won":
             # win screen keeps the restart prompt consistent with the game over screen
             self.draw_text("YOU WIN", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
             self.draw_text("Press R to restart", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 30)
 
+        if current_state == "settings":
+            # settings draws last so it covers the start screen or paused gameplay underneath
+            self.draw_settings_menu()
 
         pg.display.flip()
+
+    def key_name_for(self, action):
+        # pygame converts key constants back into readable names for the settings screen
+        return pg.key.name(self.keybinds[action]).upper()
+
+    def settings_option_count(self):
+        # two volume settings plus every rebindable control option
+        return 2 + len(self.rebindable_actions)
+
+    def change_setting(self, amount):
+        # selected index 0 controls music volume, clamped between 0 and 1
+        if self.settings_selected == 0:
+            self.music_volume = max(0, min(1, self.music_volume + amount))
+            pg.mixer.music.set_volume(self.music_volume)
+            # save immediately so volume changes persist next time the game opens
+            self.save_progress()
+        # selected index 1 controls sound effect volume, also clamped between 0 and 1
+        elif self.settings_selected == 1:
+            self.sfx_volume = max(0, min(1, self.sfx_volume + amount))
+            self.pickup_snd.set_volume(self.sfx_volume)
+            # save immediately so sound effect volume changes persist next time the game opens
+            self.save_progress()
+
+    def draw_settings_menu(self):
+        # settings gets a plain screen so it is readable from both title and pause
+        self.screen.fill(BLACK)
+        self.draw_text("SETTINGS", 56, WHITE, WIDTH / 2, HEIGHT / 4)
+
+        # the list makes it easy to add more settings later without rewriting the draw loop
+        options = [
+            f"Music Volume: {int(self.music_volume * 100)}%",
+            f"SFX Volume: {int(self.sfx_volume * 100)}%",
+        ]
+        # add one menu row for each control that can be changed
+        for action in self.rebindable_actions:
+            # each row combines the action label with the currently assigned pygame key name
+            label = self.keybind_labels[action]
+            options.append(f"{label}: {self.key_name_for(action)}")
+
+        for index, option in enumerate(options):
+            # yellow marks the currently selected setting that LEFT/RIGHT will change
+            color = YELLOW if index == self.settings_selected else WHITE
+            self.draw_text(option, 28, color, WIDTH / 2, HEIGHT / 3 + index * 36)
+
+        if self.rebinding_action is not None:
+            # this message tells the player the next key press will replace the selected control
+            label = self.keybind_labels[self.rebinding_action]
+            self.draw_text(f"Press a new key for {label}", 24, YELLOW, WIDTH / 2, HEIGHT - 155)
+
+        # controls are shown directly on the menu so the player knows how to use it
+        self.draw_text("UP/DOWN to select", 22, WHITE, WIDTH / 2, HEIGHT - 120)
+        self.draw_text("LEFT/RIGHT for volume, ENTER to change keybinds", 22, WHITE, WIDTH / 2, HEIGHT - 90)
+        self.draw_text("ESC to go back", 22, WHITE, WIDTH / 2, HEIGHT - 60)
 
     def draw_damage_vignette(self):
         # missing health controls how strong the edge effect becomes

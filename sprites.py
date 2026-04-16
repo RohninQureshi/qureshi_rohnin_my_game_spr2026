@@ -97,7 +97,7 @@ class Player(Sprite):
 
     def get_key_projectile(self): #looking for key press of specific key, and will insanciate a projectile when that key is pressed
         keys = pg.key.get_pressed()
-        if keys[pg.K_f]:
+        if keys[self.game.keybinds["shoot"]]:
             if self.projectile_cd.ready():
                 # firing starts the cooldown immediately so holding F cannot spam projectiles every frame
                 self.projectile_cd.start()
@@ -124,15 +124,16 @@ class Player(Sprite):
         keys = pg.key.get_pressed() #gets the keys pressed
         # cache movement intent once here so both the player logic and state logic read the same input
         self.move_dir = 0
-        if keys[pg.K_a]:
+        # movement reads from game.keybinds so controls can be changed in the settings menu
+        if keys[self.game.keybinds["left"]]:
             self.move_dir -= 1
-        if keys[pg.K_d]:
+        if keys[self.game.keybinds["right"]]:
             self.move_dir += 1
-        self.jump_pressed = keys[pg.K_w]
-        self.down_pressed = keys[pg.K_s]
-        self.sprint_held = keys[pg.K_LSHIFT]
+        self.jump_pressed = keys[self.game.keybinds["jump"]]
+        self.down_pressed = keys[self.game.keybinds["down"]]
+        self.sprint_held = keys[self.game.keybinds["sprint"]]
 
-        # vertical aim has priority so W can jump and still aim upward, while S aims downward
+        # vertical aim has priority so jump can also aim upward, while down aims downward
         if self.jump_pressed:
             self.aim_dir = vec(0, -1)
         elif self.down_pressed:

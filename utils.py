@@ -79,6 +79,7 @@ class Camera:
         x = -target.rect.centerx + WIDTH // 2
         y = -target.rect.centery + HEIGHT // 2
 
+        # these clamps stop the camera from showing empty space beyond the map edges
         x = min(0, x) 
         y = min(0, y)
         x = max(-(self.world_width - WIDTH), x)
