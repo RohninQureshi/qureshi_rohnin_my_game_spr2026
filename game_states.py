@@ -31,6 +31,12 @@ class GamePlayingState(State):
         # both the projectile and the mob are killed so a single shot cannot pass through multiple enemies
         pg.sprite.groupcollide(self.game.all_projectiles, self.game.all_mobs, True, True)
 
+        # player projectiles damage bosses instead of instantly killing them
+        boss_hits = pg.sprite.groupcollide(self.game.all_bosses, self.game.all_projectiles, False, True)
+        for boss in boss_hits:
+            # multiply by hit count so several projectiles in one frame still all count
+            boss.take_damage(PLAYER_PROJECTILE_BOSS_DAMAGE * len(boss_hits[boss]))
+
         # touching a mob damages the player, but a cooldown prevents instant health deletion
         mob_hits = pg.sprite.spritecollide(self.game.player, self.game.all_mobs, False)
         if mob_hits and self.game.mob_damage_cd.ready():
@@ -41,6 +47,21 @@ class GamePlayingState(State):
             if self.game.player.health <= 0:
                 # health reaching zero hands control to the game flow state machine
                 self.game.state_machine.transition("game_over")
+
+        # boss body contact uses its own cooldown so the player is not deleted instantly
+        boss_body_hits = pg.sprite.spritecollide(self.game.player, self.game.all_bosses, False)
+        if boss_body_hits and self.game.boss_damage_cd.ready():
+            self.game.player.health -= SENTINEL_CONTACT_DAMAGE
+            self.game.boss_damage_cd.start()
+
+        # boss projectiles damage the player and disappear when they hit
+        boss_projectile_hits = pg.sprite.spritecollide(self.game.player, self.game.all_boss_projectiles, True)
+        if boss_projectile_hits:
+            self.game.player.health -= SENTINEL_PROJECTILE_DAMAGE * len(boss_projectile_hits)
+
+        if self.game.player.health <= 0:
+            # any boss damage source can trigger game over once health reaches zero
+            self.game.state_machine.transition("game_over")
 
 
 # State used when gameplay is frozen but the game is still open.

@@ -59,6 +59,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.mob_damage_cd = Cooldown(MOB_DAMAGE_COOLDOWN)
         # this makes mob damage available immediately instead of waiting once at startup
         self.mob_damage_cd.start_time = -MOB_DAMAGE_COOLDOWN
+        self.boss_damage_cd = Cooldown(SENTINEL_CONTACT_COOLDOWN)
+        # boss contact damage should also be ready as soon as a boss fight starts
+        self.boss_damage_cd.start_time = -SENTINEL_CONTACT_COOLDOWN
         # these level fields are set before loading data so saves can change the starting level
         self.camera = None
         self.current_level_index = 0
@@ -272,9 +275,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_sprites = pg.sprite.Group() # these lines of code are using sprite's grouping function and tying them to variables, so I can call upon different "groups (suchs as mobs, player, or Walls)" seperately
         self.all_players = pg.sprite.Group()
         self.all_mobs = pg.sprite.Group()
+        self.all_bosses = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
         self.all_coins = pg.sprite.Group()
         self.all_projectiles = pg.sprite.Group()
+        self.all_boss_projectiles = pg.sprite.Group()
+        self.boss = None
         
         self.camera = Camera(self.map.width, self.map.height) #Actually instanciates the  camera
         
@@ -290,6 +296,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
+                if tile == 'S':
+                    # S marks the Sentinel boss spawn in the level text file
+                    self.boss = SentinelBoss(self, col, row)
         # every fresh level rebuild gives the player full health for a clean level start
         self.player.health = 100
         # restarting the level also restarts the background music loop for a clean reset
@@ -389,12 +398,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 elif event.key == pg.K_LEFT:
                     if current_state == "settings":
                         # left lowers the selected setting value
-                        self.change_setting(-0.1)
+                        self.change_setting(-0.05)
 
                 elif event.key == pg.K_RIGHT:
                     if current_state == "settings":
                         # right raises the selected setting value
-                        self.change_setting(0.1)
+                        self.change_setting(0.05)
 
 
     
@@ -432,6 +441,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             draw_health_bar(self.screen, 10, 10, self.player.health) # draw overlay text after the world so state-specific UI appears on top
             # sprint timer is part of the HUD layer, so it renders after the world just like the health bar
             self.draw_sprint_timer()
+            self.draw_boss_health_bar()
         
         if current_state == "paused":
             self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
@@ -482,26 +492,66 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             # save immediately so sound effect volume changes persist next time the game opens
             self.save_progress()
 
+    def draw_slider(self, label, value, x, y, selected):
+        # sliders show volume as both a percent number and a visual bar
+        color = YELLOW if selected else WHITE
+        self.draw_text(f"{label}: {int(value * 100)}%", 28, color, x, y)
+
+        # bar_rect is the full slider range from 0 percent to 100 percent
+        bar_width = 300
+        bar_height = 8
+        bar_rect = pg.Rect(0, 0, bar_width, bar_height)
+        bar_rect.center = (x, y + 45)
+
+        # filled_rect represents the active part of the slider based on the current value
+        filled_rect = pg.Rect(bar_rect.left, bar_rect.top, int(bar_rect.width * value), bar_rect.height)
+
+        # handle_x converts the 0.0 to 1.0 volume value into a screen x coordinate
+        handle_x = bar_rect.left + int(bar_rect.width * value)
+        handle_rect = pg.Rect(0, 0, 16, 24)
+        handle_rect.center = (handle_x, bar_rect.centery)
+
+        # draw order matters: background first, fill second, handle last
+        pg.draw.rect(self.screen, WHITE, bar_rect, 2)
+        pg.draw.rect(self.screen, YELLOW if selected else RED, filled_rect)
+        pg.draw.rect(self.screen, color, handle_rect)
+
+    def draw_boss_health_bar(self):
+        # only draw the boss bar while a living boss exists in the current level
+        if self.boss is None or not self.boss.alive():
+            return
+
+        bar_width = 500
+        bar_height = 16
+        x = WIDTH / 2 - bar_width / 2
+        y = 45
+        health_pct = max(0, self.boss.health) / self.boss.max_health
+        outline_rect = pg.Rect(x, y, bar_width, bar_height)
+        fill_rect = pg.Rect(x, y, bar_width * health_pct, bar_height)
+
+        # boss health draws near the top center so it does not cover the player health bar
+        self.draw_text("SENTINEL", 24, WHITE, WIDTH / 2, 15)
+        pg.draw.rect(self.screen, RED, fill_rect)
+        pg.draw.rect(self.screen, WHITE, outline_rect, 2)
+
     def draw_settings_menu(self):
         # settings gets a plain screen so it is readable from both title and pause
         self.screen.fill(BLACK)
-        self.draw_text("SETTINGS", 56, WHITE, WIDTH / 2, HEIGHT / 4)
+        self.draw_text("SETTINGS", 56, WHITE, WIDTH / 2, HEIGHT / 8)
 
-        # the list makes it easy to add more settings later without rewriting the draw loop
-        options = [
-            f"Music Volume: {int(self.music_volume * 100)}%",
-            f"SFX Volume: {int(self.sfx_volume * 100)}%",
-        ]
-        # add one menu row for each control that can be changed
-        for action in self.rebindable_actions:
-            # each row combines the action label with the currently assigned pygame key name
+        # volume options get drawn as sliders, but still use LEFT/RIGHT to change values
+        self.draw_slider("Music Volume", self.music_volume, WIDTH / 2, HEIGHT / 4, self.settings_selected == 0)
+        self.draw_slider("SFX Volume", self.sfx_volume, WIDTH / 2, HEIGHT / 4 + 90, self.settings_selected == 1)
+
+        # keybind rows start after the two slider rows
+        keybind_start_y = HEIGHT / 4 + 170
+        for index, action in enumerate(self.rebindable_actions):
+            # menu_index accounts for the two volume rows before the keybind rows
+            menu_index = index + 2
             label = self.keybind_labels[action]
-            options.append(f"{label}: {self.key_name_for(action)}")
-
-        for index, option in enumerate(options):
-            # yellow marks the currently selected setting that LEFT/RIGHT will change
-            color = YELLOW if index == self.settings_selected else WHITE
-            self.draw_text(option, 28, color, WIDTH / 2, HEIGHT / 3 + index * 36)
+            option = f"{label}: {self.key_name_for(action)}"
+            color = YELLOW if menu_index == self.settings_selected else WHITE
+            self.draw_text(option, 26, color, WIDTH / 2, keybind_start_y + index * 32)
 
         if self.rebinding_action is not None:
             # this message tells the player the next key press will replace the selected control

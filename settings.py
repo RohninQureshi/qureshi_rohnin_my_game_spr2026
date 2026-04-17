@@ -51,3 +51,19 @@ MOB_DAMAGE_COOLDOWN = 800
 # projectile speed is pixels per second, and lifetime is milliseconds before auto-despawn
 PROJECTILE_SPEED = 500
 PROJECTILE_LIFETIME = 750  # milliseconds
+
+
+# sentinel boss values
+# boss health is intentionally high so the fight lasts longer than a normal mob encounter
+SENTINEL_MAX_HEALTH = 1000
+SENTINEL_HIT_RECT = pg.Rect(0, 0, TILESIZE * 3, TILESIZE * 3)
+SENTINEL_PROJECTILE_SPEED = 360
+SENTINEL_PROJECTILE_DAMAGE = 15
+SENTINEL_PROJECTILE_LIFETIME = 2500
+SENTINEL_SHOT_COOLDOWN = 700
+SENTINEL_CHARGE_SPEED = 900
+# the boss rises this many pixels during its charge so the body is easier to shoot
+SENTINEL_CHARGE_HEIGHT = TILESIZE * 4
+SENTINEL_CONTACT_DAMAGE = 25
+SENTINEL_CONTACT_COOLDOWN = 900
+PLAYER_PROJECTILE_BOSS_DAMAGE = 100

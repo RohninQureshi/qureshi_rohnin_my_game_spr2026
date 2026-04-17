@@ -349,4 +349,183 @@ class Projectile(Sprite):
         if pg.sprite.spritecollideany(self, self.game.all_walls):
             self.kill()
 
+
+# Sentinel boss class for level 5, using projectiles and a right-to-left charge.
+class SentinelBoss(Sprite):
+    def __init__(self, game, x, y):
+        self.groups = game.all_sprites, game.all_bosses
+        Sprite.__init__(self, self.groups)
+        # boss uses a larger temporary rectangle until real art is added
+        self.game = game
+        self.image = pg.Surface((TILESIZE * 3, TILESIZE * 3))
+        self.image.fill(YELLOW)
+        self.rect = self.image.get_rect()
+        self.hit_rect = SENTINEL_HIT_RECT.copy()
+        self.pos = vec(x, y) * TILESIZE
+        self.vel = vec(0, 0)
+        self.health = SENTINEL_MAX_HEALTH
+        self.max_health = SENTINEL_MAX_HEALTH
+
+        # spawn_x is the far-right reset point used before every charge attack
+        self.spawn_x = self.pos.x
+        # spawn_y is the grounded resting point; charge_y is the raised dash height
+        self.spawn_y = self.pos.y - TILESIZE // 2
+        self.pos.y = self.spawn_y
+        self.charge_y = self.spawn_y - SENTINEL_CHARGE_HEIGHT
+        self.charge_target_x = self.spawn_x - self.game.map.width * 0.75
+        self.mode = "wait"
+        self.mode_start_time = pg.time.get_ticks()
+        self.next_attack = "shoot"
+        self.shot_cd = Cooldown(SENTINEL_SHOT_COOLDOWN)
+        self.hit_flash_time = 0
+        # initialize arena bounds immediately so charge logic can read them safely later
+        self.keep_inside_arena()
+
+    def set_mode(self, mode):
+        # all boss attack timing is measured from when the current mode began
+        self.mode = mode
+        self.mode_start_time = pg.time.get_ticks()
+
+        if mode == "charge_warn":
+            # reset to the right side before warning the player that a charge is coming
+            self.pos.x = self.spawn_x
+            self.pos.y = self.spawn_y
+            self.vel.x = 0
+            self.image.fill(YELLOW)
+        elif mode == "charge":
+            # charge begins from the raised height so the boss is easier to shoot while moving
+            self.pos.y = self.charge_y
+            # red means the boss is actively dangerous and moving fast
+            self.image.fill(RED)
+        elif mode == "recover":
+            # white recovery window tells the player the boss is safer to shoot
+            self.image.fill(WHITE)
+        else:
+            self.image.fill(YELLOW)
+
+    def update(self):
+        # boss rects are kept aligned with position every frame for camera and collision
+        self.rect.center = self.pos
+        self.hit_rect.center = self.pos
+
+        if self.health <= 0:
+            # defeating the Sentinel ends the current final boss level
+            self.kill()
+            self.game.state_machine.transition("game_won")
+            return
+
+        now = pg.time.get_ticks()
+
+        if now - self.hit_flash_time >= 120:
+            # after hit flash ends, restore the color that matches the current attack mode
+            if self.mode == "charge":
+                self.image.fill(RED)
+            elif self.mode == "recover":
+                self.image.fill(WHITE)
+            else:
+                self.image.fill(YELLOW)
+        else:
+            # brief orange flash gives feedback when projectiles damage the boss
+            self.image.fill((255, 120, 0))
+
+        if self.mode == "wait":
+            # wait gives the player a short breather before the next pattern starts
+            self.vel.x = 0
+            if now - self.mode_start_time > 1000:
+                if self.next_attack == "shoot":
+                    self.set_mode("shoot")
+                else:
+                    self.set_mode("charge_warn")
+
+        elif self.mode == "shoot":
+            # shoot mode fires aimed projectiles for a short burst
+            if self.shot_cd.ready():
+                self.shot_cd.start()
+                self.shoot_at_player()
+            if now - self.mode_start_time > 1800:
+                self.next_attack = "charge"
+                self.set_mode("recover")
+
+        elif self.mode == "charge_warn":
+            # warning pause lifts the boss upward before the horizontal charge begins
+            self.vel.x = 0
+            rise_progress = min(1, (now - self.mode_start_time) / 900)
+            self.pos.y = self.spawn_y - SENTINEL_CHARGE_HEIGHT * rise_progress
+            if now - self.mode_start_time > 900:
+                self.set_mode("charge")
+
+        elif self.mode == "charge":
+            # charge moves from right to left until it crosses about 75 percent of the arena
+            self.vel.x = -SENTINEL_CHARGE_SPEED
+            self.pos.x += self.vel.x * self.game.dt
+            if self.pos.x <= self.charge_target_x or self.pos.x <= self.left_bound:
+                self.next_attack = "shoot"
+                self.set_mode("recover")
+
+        elif self.mode == "recover":
+            # recovery is the safe window before the boss returns to its right-side start point
+            self.vel.x = 0
+            if now - self.mode_start_time > 1000:
+                self.pos.x = self.spawn_x
+                self.pos.y = self.spawn_y
+                self.set_mode("wait")
+
+        # final clamp prevents the boss from entering the solid border wall tiles
+        self.keep_inside_arena()
+        self.rect.center = self.pos
+        self.hit_rect.center = self.pos
+
+    def keep_inside_arena(self):
+        # bounds use one tile of padding because the level border is made of wall tiles
+        half_width = self.hit_rect.width / 2
+        half_height = self.hit_rect.height / 2
+        self.left_bound = TILESIZE + half_width
+        right_bound = self.game.map.width - TILESIZE - half_width
+        top_bound = TILESIZE + half_height
+        bottom_bound = self.game.map.height - TILESIZE - half_height
+
+        # clamp x and y separately so charge movement cannot push the boss through map edges
+        self.pos.x = max(self.left_bound, min(right_bound, self.pos.x))
+        self.pos.y = max(top_bound, min(bottom_bound, self.pos.y))
+
+    def shoot_at_player(self):
+        # projectile direction points from boss center toward the player's current center
+        direction = vec(self.game.player.rect.center) - vec(self.rect.center)
+        if direction.length_squared() == 0:
+            direction = vec(-1, 0)
+        SentinelProjectile(self.game, self.rect.centerx, self.rect.centery, direction)
+
+    def take_damage(self, amount):
+        # damage is kept in one method so hit feedback and health changes stay together
+        self.health -= amount
+        self.hit_flash_time = pg.time.get_ticks()
+
+
+# Projectile fired by the Sentinel boss toward the player.
+class SentinelProjectile(Sprite):
+    def __init__(self, game, x, y, direction):
+        self.groups = game.all_sprites, game.all_boss_projectiles
+        Sprite.__init__(self, self.groups)
+        # boss projectiles are separate from player projectiles so collision rules stay clear
+        self.game = game
+        self.image = pg.Surface((TILESIZE // 2, TILESIZE // 2))
+        self.image.fill(YELLOW)
+        self.rect = self.image.get_rect()
+        self.pos = vec(x, y)
+        self.rect.center = self.pos
+        self.vel = direction.normalize() * SENTINEL_PROJECTILE_SPEED
+        self.spawn_time = pg.time.get_ticks()
+
+    def update(self):
+        # boss projectile movement also uses delta time so speed stays consistent
+        self.pos += self.vel * self.game.dt
+        self.rect.center = self.pos
+
+        if pg.time.get_ticks() - self.spawn_time >= SENTINEL_PROJECTILE_LIFETIME:
+            self.kill()
+            return
+
+        # boss shots disappear on walls so they do not travel through the arena forever
+        if pg.sprite.spritecollideany(self, self.game.all_walls):
+            self.kill()
         

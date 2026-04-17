@@ -1,9 +1,9 @@
 {
-    "timestamp": "2026-04-16T09:21:59.556495",
+    "timestamp": "2026-04-16T10:07:29.748278",
     "current_level_index": 1,
     "current_level_file": "level2.txt",
-    "music_volume": 0.5,
-    "sfx_volume": 0.5,
+    "music_volume": 0.7500000000000001,
+    "sfx_volume": 0.7500000000000002,
     "keybinds": {
         "jump": 119,
         "down": 115,
