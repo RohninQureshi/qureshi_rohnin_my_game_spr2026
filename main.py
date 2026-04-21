@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-16 08:49:01'
+__updated__ = '2026-04-21 12:53:21'
 
 
 import pygame as pg
@@ -280,6 +280,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_coins = pg.sprite.Group()
         self.all_projectiles = pg.sprite.Group()
         self.all_boss_projectiles = pg.sprite.Group()
+        # particles are grouped separately so they can be added without changing gameplay collision groups
+        self.all_particles = pg.sprite.Group()
+        # afterimages are separate so they can be drawn behind normal sprites
+        self.all_afterimages = pg.sprite.Group()
+        # damage numbers are lightweight dictionaries because they only need text, position, and age
+        self.damage_numbers = []
         self.boss = None
         
         self.camera = Camera(self.map.width, self.map.height) #Actually instanciates the  camera
@@ -419,9 +425,70 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # lets the active game-flow state decide what should update this frame
         # the state machine controls whether gameplay runs, pauses, or waits on a menu
         self.state_machine.update()
+        # damage numbers are not sprites, so they need their own update step
+        self.update_damage_numbers()
         # self.all_sprites.update() #updating sprites for dynamics (movement of player)
         # if self.camera is not None: #if the camera exists
         #     self.camera.update(self.player) #the camera is updating for player, so it locks onto player
+
+    def add_damage_number(self, world_pos, amount, color):
+        # stores floating combat text in world coordinates so the camera moves it with the level
+        # each number tracks its own position and age instead of being a full pygame sprite
+        self.damage_numbers.append({
+            "text": str(amount),
+            "pos": pg.math.Vector2(world_pos) + pg.math.Vector2(randint(-10, 10), -12),
+            "age": 0,
+            "color": color,
+        })
+
+    def update_damage_numbers(self):
+        # skip safely before the first level has created the damage number list
+        if not hasattr(self, "damage_numbers"):
+            return
+
+        for number in self.damage_numbers:
+            # age is stored in milliseconds to match the rest of pygame timing in this project
+            number["age"] += self.dt * 1000
+            # floating upward makes the number readable without covering the hit target for long
+            number["pos"].y -= DAMAGE_NUMBER_RISE_SPEED * self.dt
+
+        # keep only numbers that are still inside their visible lifetime
+        self.damage_numbers = [
+            number for number in self.damage_numbers
+            if number["age"] < DAMAGE_NUMBER_LIFETIME
+        ]
+
+    def draw_damage_numbers(self):
+        # damage numbers are drawn after sprites so they stay visible above enemies and particles
+        if not hasattr(self, "damage_numbers") or self.camera is None:
+            return
+
+        font_name = pg.font.match_font("arial")
+        font = pg.font.Font(font_name, 22)
+        for number in self.damage_numbers:
+            # fade out near the end so numbers disappear smoothly instead of popping off
+            alpha = max(0, 255 - int(255 * number["age"] / DAMAGE_NUMBER_LIFETIME))
+            text_surface = font.render(number["text"], True, number["color"])
+            text_surface.set_alpha(alpha)
+            text_rect = text_surface.get_rect()
+            text_rect.center = self.camera.apply_point(number["pos"])
+            self.screen.blit(text_surface, text_rect)
+
+    def spawn_hit_particles(self, world_pos, color, count):
+        # particles are spawned through Game so combat code does not need to manage sprite groups directly
+        if not hasattr(self, "all_particles"):
+            return
+
+        for _ in range(count):
+            HitParticle(self, world_pos[0], world_pos[1], color)
+
+    def spawn_afterimage(self, image, rect):
+        # afterimages are faded copies of the real sprite image at an old position
+        # the image and rect are copied by AfterImage so the original sprite can keep moving normally
+        if not hasattr(self, "all_afterimages"):
+            return
+
+        AfterImage(self, image, rect)
         
     def draw(self):
         self.screen.fill(BLUE)  # screen color
@@ -433,9 +500,14 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
         
         if current_state != "start":
+            # afterimages draw before real sprites so they look like a trail behind motion
+            for afterimage in self.all_afterimages:
+                self.screen.blit(afterimage.image, self.camera.apply(afterimage))
             # world sprites are drawn before HUD so health and sprint text stay visible on top
             for sprite in self.all_sprites: #looks through all sprites
                 self.screen.blit(sprite.image, self.camera.apply(sprite)) #for each sprite, replace the image with it's image AND apply the camera to it
+            # floating damage text draws above the world but below the main HUD
+            self.draw_damage_numbers()
             # red vignette is drawn over the world before HUD text so damage is visible without hiding the UI
             self.draw_damage_vignette()
             draw_health_bar(self.screen, 10, 10, self.player.health) # draw overlay text after the world so state-specific UI appears on top

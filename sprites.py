@@ -5,6 +5,7 @@ from utils import *
 import sys
 from os import path
 from ctypes import Array
+from random import uniform, randint, choice
 from player_states import *
 from state_machine import *
 
@@ -73,6 +74,10 @@ class Player(Sprite):
         self.sprint_reset_cd = Cooldown(SPRINT_RESET_TIME)
         self.sprint_cooling_down = False
         self.sprint_start_time = 0
+        # sprint particles use their own timer so the dust trail does not spawn every frame
+        self.last_sprint_particle_time = 0
+        # sprint afterimages are separate from dust and create the speed blur effect
+        self.last_sprint_afterimage_time = 0
         # player has its own movement-focused state machine separate from the game-wide one
         self.state_machine = StateMachine()
         self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self)]
@@ -92,6 +97,8 @@ class Player(Sprite):
             self.vel.x = speed
         # jumping only applies when the player is grounded so there is no infinite air jump
         if self.jump_pressed and self.on_ground:
+            # jump dust gives feedback right when the player leaves the ground
+            self.game.spawn_hit_particles(self.rect.midbottom, WHITE, 8)
             self.vel.y = JUMP_VELOCITY
             self.on_ground = False
 
@@ -208,6 +215,8 @@ class Player(Sprite):
                 self.rect.center = center
 
     def update(self): #frame-by-frame player update for movement, physics, and objective checks
+        # save grounded state before physics so landing can be detected after collision resolves
+        was_on_ground = self.on_ground
         self.update_input_flags() #refresh player input before the state machine decides how to move
         self.state_machine.update() #the player state machine now replaces the old state() method
         # input intent is turned into actual velocity after the state machine sets sprint / walk state
@@ -227,16 +236,42 @@ class Player(Sprite):
         # the vertical pass applies gravity, landing, and head collisions separately from horizontal movement
         self.pos.y += self.vel.y * self.game.dt
         self.hit_rect.centery = self.pos.y #recentering hitbox
+        # fall_speed is saved because vertical collision can reset vel.y to 0 after landing
+        fall_speed = self.vel.y
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
+        self.spawn_movement_particles(was_on_ground, fall_speed)
         self.animate()
 
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
+            # coin particles are spawned before the level changes so pickup feedback appears immediately
+            for coin in c_hits:
+                self.game.spawn_hit_particles(coin.rect.center, YELLOW, 16)
             # collecting the coin is the level goal, so the level clear state handles what comes next
             # coin pickup belongs to the game-wide flow, so it triggers the game state machine
             self.game.pickup_snd.play()
             self.game.state_machine.transition("level_clear")
+
+    def spawn_movement_particles(self, was_on_ground, fall_speed):
+        # landing dust only appears after a real fall so small slopes or tiny bumps stay quiet
+        if not was_on_ground and self.on_ground and fall_speed > LANDING_PARTICLE_MIN_SPEED:
+            self.game.spawn_hit_particles(self.rect.midbottom, WHITE, 12)
+
+        # sprint dust appears from behind the player while sprinting on the ground
+        now = pg.time.get_ticks()
+        if self.sprinting and self.on_ground and now - self.last_sprint_particle_time >= SPRINT_PARTICLE_DELAY:
+            self.last_sprint_particle_time = now
+            # place the dust slightly behind the current movement direction
+            dust_x = self.rect.centerx - (self.move_dir * TILESIZE // 2)
+            dust_pos = (dust_x, self.rect.bottom)
+            self.game.spawn_hit_particles(dust_pos, WHITE, 3)
+
+        if self.sprinting and now - self.last_sprint_afterimage_time >= SPRINT_AFTERIMAGE_DELAY:
+            # afterimage copies the current player frame so the trail matches the real sprite
+            # rect.copy() freezes this old position while the real player continues moving
+            self.last_sprint_afterimage_time = now
+            self.game.spawn_afterimage(self.image, self.rect.copy())
 
             
 
@@ -255,10 +290,21 @@ class Mob(Sprite):
         self.pos = vec(x,y) * TILESIZE
         self.hit_rect = MOB_HIT_RECT.copy()
         self.on_ground = False
+        # regular mobs now have health so projectiles use damage instead of instant deletion
+        self.health = MOB_MAX_HEALTH
+        self.max_health = MOB_MAX_HEALTH
+        self.hit_flash_time = 0
         # patrol_dir stores which way the mob moves; 1 is right and -1 is left
         self.patrol_dir = 1
 
     def update(self): 
+        now = pg.time.get_ticks()
+        # quick white flash makes it obvious when a mob takes projectile damage
+        if now - self.hit_flash_time < 120:
+            self.image.fill(WHITE)
+        else:
+            self.image.fill(RED)
+
         # simple alpha-safe enemy behavior: patrol horizontally and reverse when blocked
         self.vel.x = MOB_SPEED * self.patrol_dir
         # mobs use the same gravity constants as the player so they land on platforms
@@ -282,6 +328,16 @@ class Mob(Sprite):
         self.hit_rect.centery = self.pos.y #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
+
+    def take_damage(self, amount):
+        # all mob damage goes through this method so health, flash, and death stay together
+        self.health -= amount
+        self.hit_flash_time = pg.time.get_ticks()
+
+        if self.health <= 0:
+            # death particles give a clear visual reward before the mob is removed
+            self.game.spawn_hit_particles(self.rect.center, RED, 20)
+            self.kill()
 
 # Wall sprite class that represents solid map tiles the player and mobs collide with.
 class Wall(Sprite):
@@ -334,11 +390,18 @@ class Projectile(Sprite):
         self.vel = direction.normalize() * PROJECTILE_SPEED
         # spawn_time is used to remove the projectile after PROJECTILE_LIFETIME expires
         self.spawn_time = pg.time.get_ticks()
+        # trail timing keeps the projectile readable without flooding the sprite group
+        self.last_trail_time = self.spawn_time
+        # afterimage timing creates transparent image copies behind fast projectiles
+        self.last_afterimage_time = self.spawn_time
 
     def update(self):
         # move the projectile in world space using delta time just like other moving objects
         self.pos += self.vel * self.game.dt
         self.rect.center = self.pos
+        # trails and afterimages are visual feedback only; projectile collision still uses the real rect
+        self.spawn_trail_particles()
+        self.spawn_afterimage()
 
         # remove old projectiles so they do not live forever and fill the sprite groups
         if pg.time.get_ticks() - self.spawn_time >= PROJECTILE_LIFETIME:
@@ -347,7 +410,23 @@ class Projectile(Sprite):
 
         # remove projectiles as soon as they hit a solid wall tile
         if pg.sprite.spritecollideany(self, self.game.all_walls):
+            # wall particles make missed shots easier to see
+            self.game.spawn_hit_particles(self.rect.center, RED, 4)
             self.kill()
+
+    def spawn_trail_particles(self):
+        # trail particles mark the projectile path and make fast shots easier to track
+        now = pg.time.get_ticks()
+        if now - self.last_trail_time >= PROJECTILE_TRAIL_DELAY:
+            self.last_trail_time = now
+            self.game.spawn_hit_particles(self.rect.center, RED, 1)
+
+    def spawn_afterimage(self):
+        # projectile afterimages are clean transparent sprite copies, separate from random particle sparks
+        now = pg.time.get_ticks()
+        if now - self.last_afterimage_time >= PROJECTILE_AFTERIMAGE_DELAY:
+            self.last_afterimage_time = now
+            self.game.spawn_afterimage(self.image, self.rect.copy())
 
 
 # Sentinel boss class for level 5, using projectiles and a right-to-left charge.
@@ -410,6 +489,7 @@ class SentinelBoss(Sprite):
 
         if self.health <= 0:
             # defeating the Sentinel ends the current final boss level
+            self.game.spawn_hit_particles(self.rect.center, YELLOW, 45)
             self.kill()
             self.game.state_machine.transition("game_won")
             return
@@ -515,11 +595,18 @@ class SentinelProjectile(Sprite):
         self.rect.center = self.pos
         self.vel = direction.normalize() * SENTINEL_PROJECTILE_SPEED
         self.spawn_time = pg.time.get_ticks()
+        # boss projectiles also leave trails so the player can read their paths
+        self.last_trail_time = self.spawn_time
+        # boss projectile afterimages use the same fade logic but a different color
+        self.last_afterimage_time = self.spawn_time
 
     def update(self):
         # boss projectile movement also uses delta time so speed stays consistent
         self.pos += self.vel * self.game.dt
         self.rect.center = self.pos
+        # boss shots use the same visual trail system as player shots but with yellow coloring
+        self.spawn_trail_particles()
+        self.spawn_afterimage()
 
         if pg.time.get_ticks() - self.spawn_time >= SENTINEL_PROJECTILE_LIFETIME:
             self.kill()
@@ -527,5 +614,84 @@ class SentinelProjectile(Sprite):
 
         # boss shots disappear on walls so they do not travel through the arena forever
         if pg.sprite.spritecollideany(self, self.game.all_walls):
+            # small impact burst shows where the boss projectile was stopped
+            self.game.spawn_hit_particles(self.rect.center, YELLOW, 4)
             self.kill()
+
+    def spawn_trail_particles(self):
+        # yellow trail particles separate boss shots from the player's red shots
+        now = pg.time.get_ticks()
+        if now - self.last_trail_time >= PROJECTILE_TRAIL_DELAY:
+            self.last_trail_time = now
+            self.game.spawn_hit_particles(self.rect.center, YELLOW, 1)
+
+    def spawn_afterimage(self):
+        # boss projectile afterimages make enemy shots readable without mixing with player red shots
+        now = pg.time.get_ticks()
+        if now - self.last_afterimage_time >= PROJECTILE_AFTERIMAGE_DELAY:
+            self.last_afterimage_time = now
+            self.game.spawn_afterimage(self.image, self.rect.copy())
+
+
+# Fading image copy used for sprint and projectile speed trails.
+class AfterImage(Sprite):
+    def __init__(self, game, source_image, source_rect):
+        self.groups = game.all_afterimages
+        Sprite.__init__(self, self.groups)
+        # afterimages do not collide; they only remember an old image and old position
+        self.game = game
+        # copy the actual sprite image so the trail matches the object instead of a generic square
+        self.image = source_image.copy()
+        # start semi-transparent so the afterimage reads as a ghost, not a second real object
+        self.image.set_alpha(AFTERIMAGE_START_ALPHA)
+        self.rect = source_rect.copy()
+        self.spawn_time = pg.time.get_ticks()
+
+    def update(self):
+        # fade the copied image until its lifetime ends, then remove it from the visual group
+        age = pg.time.get_ticks() - self.spawn_time
+        if age >= AFTERIMAGE_LIFETIME:
+            self.kill()
+            return
+
+        alpha = max(0, AFTERIMAGE_START_ALPHA - int(AFTERIMAGE_START_ALPHA * age / AFTERIMAGE_LIFETIME))
+        self.image.set_alpha(alpha)
+
+
+# Short-lived visual particle used for hit sparks and projectile impacts.
+class HitParticle(Sprite):
+    def __init__(self, game, x, y, color):
+        self.groups = game.all_sprites, game.all_particles
+        Sprite.__init__(self, self.groups)
+        # particles are purely visual, so they use tiny squares instead of collision rects
+        self.game = game
+        size = randint(3, 7)
+        self.image = pg.Surface((size, size), pg.SRCALPHA)
+        self.color = color
+        # color is chosen by the caller so different events can have different particle colors
+        self.image.fill(color)
+        self.rect = self.image.get_rect()
+        self.pos = vec(x, y)
+
+        # random velocity spreads particles outward in different directions
+        self.vel = vec(uniform(-1, 1), uniform(-1.4, 0.4))
+        if self.vel.length_squared() == 0:
+            self.vel = vec(choice([-1, 1]), -1)
+        self.vel = self.vel.normalize() * uniform(PARTICLE_MIN_SPEED, PARTICLE_MAX_SPEED)
+        self.spawn_time = pg.time.get_ticks()
+
+    def update(self):
+        # particles fade and fall slightly so hits feel physical without affecting gameplay
+        age = pg.time.get_ticks() - self.spawn_time
+        if age >= PARTICLE_LIFETIME:
+            self.kill()
+            return
+
+        self.vel.y += PARTICLE_GRAVITY * self.game.dt
+        self.pos += self.vel * self.game.dt
+        self.rect.center = self.pos
+
+        # alpha fades from solid to transparent across the particle lifetime
+        alpha = max(0, 255 - int(255 * age / PARTICLE_LIFETIME))
+        self.image.set_alpha(alpha)
         

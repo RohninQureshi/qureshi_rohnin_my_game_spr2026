@@ -5,7 +5,7 @@ from state_machine import State
 # Player state for standing still and waiting for movement input.
 class PlayerIdleState(State):
     def __init__(self, player):
-        # player reference is needed so the state can inspect movement flags and transition 
+        # player reference is needed so the state can inspect movement flags and transition
         self.player = player
 
     def get_state_name(self):

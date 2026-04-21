@@ -74,6 +74,10 @@ class Camera:
         # offsets an entity by the camera position so the world appears to move around the player
         return entity.rect.move(self.camera.topleft)
 
+    def apply_point(self, point):
+        # converts a world-space point into screen-space for effects that are not normal sprites
+        return point.x + self.camera.x, point.y + self.camera.y
+
     def update(self, target):
         # moves the camera so the target stays centered on screen
         x = -target.rect.centerx + WIDTH // 2
@@ -102,5 +106,4 @@ def draw_health_bar(surf,x,y,pct):
     # draw the red fill first, then draw the white border on top for readability
     pg.draw.rect(surf, RED, fill_rect)
     pg.draw.rect(surf, WHITE, outline_rect, 2)
-
 

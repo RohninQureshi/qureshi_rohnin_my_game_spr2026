@@ -24,24 +24,38 @@ class GamePlayingState(State):
     def update(self):
         # only while playing do we update sprites and the camera
         self.game.all_sprites.update()
+        # afterimages are visual-only, so they update outside the collision sprite groups
+        self.game.all_afterimages.update()
         if self.game.camera is not None:
             # camera follows the player only during active gameplay
             self.game.camera.update(self.game.player)
-        # projectiles remove mobs on contact, giving shooting an actual gameplay purpose
-        # both the projectile and the mob are killed so a single shot cannot pass through multiple enemies
-        pg.sprite.groupcollide(self.game.all_projectiles, self.game.all_mobs, True, True)
+
+        # player projectiles now deal damage to mobs instead of deleting them directly
+        # projectiles still disappear on hit so one shot cannot pierce through several enemies
+        mob_projectile_hits = pg.sprite.groupcollide(self.game.all_mobs, self.game.all_projectiles, False, True)
+        for mob, projectiles in mob_projectile_hits.items():
+            # damage stacks if several projectiles hit the same mob during the same frame
+            damage = PLAYER_PROJECTILE_MOB_DAMAGE * len(projectiles)
+            mob.take_damage(damage)
+            self.game.add_damage_number(mob.rect.center, damage, YELLOW)
+            self.game.spawn_hit_particles(mob.rect.center, YELLOW, 8)
 
         # player projectiles damage bosses instead of instantly killing them
         boss_hits = pg.sprite.groupcollide(self.game.all_bosses, self.game.all_projectiles, False, True)
-        for boss in boss_hits:
+        for boss, projectiles in boss_hits.items():
             # multiply by hit count so several projectiles in one frame still all count
-            boss.take_damage(PLAYER_PROJECTILE_BOSS_DAMAGE * len(boss_hits[boss]))
+            damage = PLAYER_PROJECTILE_BOSS_DAMAGE * len(projectiles)
+            boss.take_damage(damage)
+            self.game.add_damage_number(boss.rect.center, damage, YELLOW)
+            self.game.spawn_hit_particles(boss.rect.center, (255, 120, 0), 10)
 
         # touching a mob damages the player, but a cooldown prevents instant health deletion
-        mob_hits = pg.sprite.spritecollide(self.game.player, self.game.all_mobs, False)
-        if mob_hits and self.game.mob_damage_cd.ready():
+        mob_contact_hits = pg.sprite.spritecollide(self.game.player, self.game.all_mobs, False)
+        if mob_contact_hits and self.game.mob_damage_cd.ready():
             # damage is subtracted from the player object so the existing health bar updates automatically
             self.game.player.health -= MOB_DAMAGE
+            self.game.add_damage_number(self.game.player.rect.center, MOB_DAMAGE, RED)
+            self.game.spawn_hit_particles(self.game.player.rect.center, RED, 6)
             # start the cooldown after a successful hit so contact damage happens in pulses
             self.game.mob_damage_cd.start()
             if self.game.player.health <= 0:
@@ -52,12 +66,17 @@ class GamePlayingState(State):
         boss_body_hits = pg.sprite.spritecollide(self.game.player, self.game.all_bosses, False)
         if boss_body_hits and self.game.boss_damage_cd.ready():
             self.game.player.health -= SENTINEL_CONTACT_DAMAGE
+            self.game.add_damage_number(self.game.player.rect.center, SENTINEL_CONTACT_DAMAGE, RED)
+            self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
             self.game.boss_damage_cd.start()
 
         # boss projectiles damage the player and disappear when they hit
         boss_projectile_hits = pg.sprite.spritecollide(self.game.player, self.game.all_boss_projectiles, True)
         if boss_projectile_hits:
-            self.game.player.health -= SENTINEL_PROJECTILE_DAMAGE * len(boss_projectile_hits)
+            damage = SENTINEL_PROJECTILE_DAMAGE * len(boss_projectile_hits)
+            self.game.player.health -= damage
+            self.game.add_damage_number(self.game.player.rect.center, damage, RED)
+            self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
 
         if self.game.player.health <= 0:
             # any boss damage source can trigger game over once health reaches zero
