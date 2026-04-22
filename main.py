@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-21 12:53:21'
+__updated__ = '2026-04-22 11:57:09'
 
 
 import pygame as pg
@@ -70,6 +70,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.settings_selected = 0
         self.music_volume = 0.5
         self.sfx_volume = 0.5
+        # run progression is stored on Game so stats can survive between level rebuilds
+        self.reset_player_progression()
         # keybinds keep controls in one place so the settings menu can change them
         self.keybinds = {
             "jump": pg.K_w,
@@ -134,6 +136,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "sfx_volume": self.sfx_volume,
             # key constants are integers, so they can be written directly into json
             "keybinds": self.keybinds,
+            # progression values are simple numbers, so they can be restored before a player object exists
+            "player_armor": self.player_armor,
+            "player_weapon_damage": self.player_weapon_damage,
+            "player_max_ammo": self.player_max_ammo,
+            "player_ammo": self.player_ammo,
         }
 
     def save_progress(self):
@@ -190,6 +197,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             if action in saved_keybinds and isinstance(saved_keybinds[action], int):
                 self.keybinds[action] = saved_keybinds[action]
 
+        # restore progression if this save was made after the progression system was added
+        self.player_armor = data.get("player_armor", self.player_armor)
+        self.player_weapon_damage = data.get("player_weapon_damage", self.player_weapon_damage)
+        self.player_max_ammo = data.get("player_max_ammo", self.player_max_ammo)
+        self.player_ammo = min(data.get("player_ammo", self.player_ammo), self.player_max_ammo)
+
         # apply restored volume values to the already-loaded pygame sound objects
         self.apply_audio_settings()
 
@@ -245,9 +258,28 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # this method is reused by loading saves, restarting, and moving to the next level
         self.map = Map(path.join(self.level_dir, self.levels[self.current_level_index]))
 
+    def reset_player_progression(self):
+        # starting a new run resets progression, but moving to the next level does not
+        self.player_armor = PLAYER_STARTING_ARMOR
+        self.player_weapon_damage = PLAYER_STARTING_WEAPON_DAMAGE
+        self.player_max_ammo = PLAYER_MAX_AMMO
+        self.player_ammo = PLAYER_MAX_AMMO
+
+    def store_player_progression(self):
+        # copy current player stats back to Game before rebuilding the level sprites
+        if not hasattr(self, "player"):
+            return
+
+        self.player_armor = self.player.armor
+        self.player_weapon_damage = self.player.weapon_damage
+        self.player_max_ammo = self.player.max_ammo
+        self.player_ammo = self.player.ammo
+
     def next_level(self):
         # advances to the next level if one exists, otherwise transitions to the win state
         if self.current_level_index < len(self.levels) - 1:
+            # keep ammo and upgrades from the old player before the new level creates a fresh Player
+            self.store_player_progression()
             # bump the index first so load_current_level reads the next map file
             self.current_level_index += 1
             self.load_current_level()
@@ -261,6 +293,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
     def restart_from_title(self):
         # reset the level index so a restart always begins from the first level
         self.current_level_index = 0
+        # restarting from title resets ammo, armor, and weapon damage back to starting values
+        self.reset_player_progression()
         self.load_current_level()
         # rebuild all sprite groups so player health, mobs, coins, and projectiles reset cleanly
         self.new()
@@ -278,6 +312,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.all_bosses = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
         self.all_coins = pg.sprite.Group()
+        self.all_powerups = pg.sprite.Group()
         self.all_projectiles = pg.sprite.Group()
         self.all_boss_projectiles = pg.sprite.Group()
         # particles are grouped separately so they can be added without changing gameplay collision groups
@@ -302,11 +337,19 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     self.mob = Mob(self, col, row)
                 if tile =='C':
                     self.coin = Coin(self, col, row)
+                if tile == 'A':
+                    ArmorPickup(self, col, row)
+                if tile == 'W':
+                    WeaponPickup(self, col, row)
+                if tile == 'B':
+                    AmmoPickup(self, col, row)
                 if tile == 'S':
                     # S marks the Sentinel boss spawn in the level text file
                     self.boss = SentinelBoss(self, col, row)
         # every fresh level rebuild gives the player full health for a clean level start
         self.player.health = 100
+        # progression stats come from Game, so ammo does not reset when entering the next level
+        self.player.apply_progression(self.player_armor, self.player_weapon_damage, self.player_max_ammo, self.player_ammo)
         # restarting the level also restarts the background music loop for a clean reset
         pg.mixer.music.load(path.join(self.snd_dir, "background_soundtrack.mp3"))
         pg.mixer.music.set_volume(self.music_volume)
@@ -431,6 +474,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # if self.camera is not None: #if the camera exists
         #     self.camera.update(self.player) #the camera is updating for player, so it locks onto player
 
+    def damage_player(self, amount):
+        # armor reduces incoming damage, but damage never drops below 1
+        final_damage = max(1, amount - self.player.armor)
+        self.player.health -= final_damage
+        return final_damage
+
     def add_damage_number(self, world_pos, amount, color):
         # stores floating combat text in world coordinates so the camera moves it with the level
         # each number tracks its own position and age instead of being a full pygame sprite
@@ -513,6 +562,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             draw_health_bar(self.screen, 10, 10, self.player.health) # draw overlay text after the world so state-specific UI appears on top
             # sprint timer is part of the HUD layer, so it renders after the world just like the health bar
             self.draw_sprint_timer()
+            self.draw_progression_hud()
             self.draw_boss_health_bar()
         
         if current_state == "paused":
@@ -671,6 +721,22 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         text_rect = text_surface.get_rect()
         text_rect.topright = (WIDTH - 10, 10)
         self.screen.blit(text_surface, text_rect)
+
+    def draw_progression_hud(self):
+        # ammo, armor, and weapon damage sit under the sprint timer so progression is always visible
+        font_name = pg.font.match_font("arial")
+        font = pg.font.Font(font_name, 22)
+        hud_lines = [
+            f"Ammo: {self.player.ammo}/{self.player.max_ammo}",
+            f"Armor: {self.player.armor}",
+            f"Damage: {self.player.weapon_damage}",
+        ]
+
+        for index, line in enumerate(hud_lines):
+            text_surface = font.render(line, True, WHITE)
+            text_rect = text_surface.get_rect()
+            text_rect.topright = (WIDTH - 10, 42 + index * 24)
+            self.screen.blit(text_surface, text_rect)
 
     def draw_text(self, text, size, color, x, y):  # function that draws text on the screen
         # create a font object for the requested size each time text needs to be drawn

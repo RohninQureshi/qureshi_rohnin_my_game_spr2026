@@ -27,6 +27,13 @@ PINK = (255, 105, 180)
 PLAYER_SPEED = 280
 PLAYER_SPRINT_SPEED = 560
 PLAYER_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE)
+# progression stats control ammo, armor, and weapon strength during a run
+PLAYER_MAX_AMMO = 10
+PLAYER_STARTING_ARMOR = 0
+PLAYER_STARTING_WEAPON_DAMAGE = 100
+ARMOR_UPGRADE_AMOUNT = 5
+WEAPON_UPGRADE_AMOUNT = 25
+AMMO_PICKUP_AMOUNT = 5
 # sprint timing is stored in milliseconds because pygame's clock uses milliseconds
 SPRINT_DURATION = 5000      
 SPRINT_RESET_TIME = 10000
@@ -57,7 +64,7 @@ MOB_ATTACK_FLASH_MS = 120
 PROJECTILE_SPEED = 500
 PROJECTILE_LIFETIME = 750  # milliseconds
 # one normal projectile does enough damage to defeat one regular mob
-PLAYER_PROJECTILE_MOB_DAMAGE = 100
+PLAYER_PROJECTILE_MOB_DAMAGE = PLAYER_STARTING_WEAPON_DAMAGE
 
 # hit feedback values
 # damage numbers and particles are short-lived visual feedback, not gameplay objects

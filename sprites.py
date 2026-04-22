@@ -59,11 +59,17 @@ class Player(Sprite):
         self.vel = vec(0,0) #velocity
         self.pos = vec(x,y) * TILESIZE #postion
         self.hit_rect = PLAYER_HIT_RECT.copy()
+        self.no_ammo_cd = Cooldown(700)
         # these booleans and input fields are read by player_states.py instead of one large state method
         self.sprinting = False
         self.walking = False
         self.on_ground = False
         self.health = 100
+        # progression stats are applied from Game so they can carry across levels
+        self.armor = PLAYER_STARTING_ARMOR
+        self.weapon_damage = PLAYER_STARTING_WEAPON_DAMAGE
+        self.max_ammo = PLAYER_MAX_AMMO
+        self.ammo = self.max_ammo
         self.move_dir = 0
         self.jump_pressed = False
         self.down_pressed = False
@@ -103,14 +109,30 @@ class Player(Sprite):
             self.vel.y = JUMP_VELOCITY
             self.on_ground = False
 
-    def get_key_projectile(self): #looking for key press of specific key, and will insanciate a projectile when that key is pressed
+    def get_key_projectile(self):
         keys = pg.key.get_pressed()
+
         if keys[self.game.keybinds["shoot"]]:
+            if self.ammo <= 0:
+                # show feedback only every 700ms so holding shoot does not flood the screen
+                if self.no_ammo_cd.ready():
+                    self.no_ammo_cd.start()
+                    self.game.add_damage_number(self.rect.center, "NO AMMO", RED)
+                return
+
             if self.projectile_cd.ready():
-                # firing starts the cooldown immediately so holding F cannot spam projectiles every frame
+                # firing starts the cooldown immediately so holding shoot cannot spam projectiles every frame
                 self.projectile_cd.start()
-                # fire from the player's current center using the latest aim direction
+                self.ammo -= 1
+                self.game.player_ammo = self.ammo
                 Projectile(self.game, self.rect.centerx, self.rect.centery, self.aim_dir)
+
+    def apply_progression(self, armor, weapon_damage, max_ammo, ammo):
+        # Game owns persistent progression, and this method copies it onto a newly spawned player
+        self.armor = armor
+        self.weapon_damage = weapon_damage
+        self.max_ammo = max_ammo
+        self.ammo = min(ammo, self.max_ammo)
     
     def load_images(self):
         # each list stores animation frames for a single player movement state
@@ -253,6 +275,15 @@ class Player(Sprite):
             # coin pickup belongs to the game-wide flow, so it triggers the game state machine
             self.game.pickup_snd.play()
             self.game.state_machine.transition("level_clear")
+
+        p_hits = pg.sprite.spritecollide(self, self.game.all_powerups, True)
+        if p_hits:
+            # powerups change progression stats without ending the level
+            for powerup in p_hits:
+                powerup.apply(self)
+                self.game.spawn_hit_particles(powerup.rect.center, powerup.color, 14)
+            self.game.pickup_snd.play()
+            self.game.store_player_progression()
 
     def spawn_movement_particles(self, was_on_ground, fall_speed):
         # landing dust only appears after a real fall so small slopes or tiny bumps stay quiet
@@ -418,6 +449,75 @@ class Coin(Sprite):
     def update(self): #same as player, but no movement 
         # coins are static, so they only need their rect centered on their map position
         self.rect.center = self.pos
+
+
+# Base class for upgrade pickups placed directly in text levels.
+class Powerup(Sprite):
+    def __init__(self, game, x, y, color, letter):
+        self.groups = game.all_sprites, game.all_powerups
+        Sprite.__init__(self, self.groups)
+        # powerups use simple colored tiles with letters so they are readable before art exists
+        self.game = game
+        self.color = color
+        self.letter = letter
+        self.image = pg.Surface((TILESIZE, TILESIZE))
+        self.image.fill(color)
+        self.draw_letter()
+        self.rect = self.image.get_rect()
+        self.pos = vec(x, y) * TILESIZE
+
+    def draw_letter(self):
+        # the letter matches the character used in the level text file
+        font = pg.font.Font(pg.font.match_font("arial"), 22)
+        text_surface = font.render(self.letter, True, BLACK)
+        text_rect = text_surface.get_rect(center=(TILESIZE // 2, TILESIZE // 2))
+        self.image.blit(text_surface, text_rect)
+
+    def update(self):
+        # powerups are static, so they only need to stay centered on their map position
+        self.rect.center = self.pos
+
+    def apply(self, player):
+        # child classes override this to change a specific player stat
+        pass
+
+
+# A in a level file increases armor.
+class ArmorPickup(Powerup):
+    def __init__(self, game, x, y):
+        super().__init__(game, x, y, GREEN, "A")
+
+    def apply(self, player):
+        # armor reduces incoming damage through Game.damage_player()
+        player.armor += ARMOR_UPGRADE_AMOUNT
+        player.game.player_armor = player.armor
+        player.game.add_damage_number(player.rect.center, f"+{ARMOR_UPGRADE_AMOUNT} ARM", GREEN)
+
+
+# W in a level file increases projectile damage.
+class WeaponPickup(Powerup):
+    def __init__(self, game, x, y):
+        super().__init__(game, x, y, YELLOW, "W")
+
+    def apply(self, player):
+        # weapon damage is read by combat collisions when projectiles hit mobs or bosses
+        player.weapon_damage += WEAPON_UPGRADE_AMOUNT
+        player.game.player_weapon_damage = player.weapon_damage
+        player.game.add_damage_number(player.rect.center, f"+{WEAPON_UPGRADE_AMOUNT} DMG", YELLOW)
+
+
+# B in a level file refills part of the player's ammo.
+class AmmoPickup(Powerup):
+    def __init__(self, game, x, y):
+        super().__init__(game, x, y, BLUE, "B")
+
+    def apply(self, player):
+        # ammo refill is capped at max_ammo so pickups cannot overfill the weapon
+        old_ammo = player.ammo
+        player.ammo = min(player.max_ammo, player.ammo + AMMO_PICKUP_AMOUNT)
+        player.game.player_ammo = player.ammo
+        gained = player.ammo - old_ammo
+        player.game.add_damage_number(player.rect.center, f"+{gained} AMMO", BLUE)
 
 # Projectile sprite class used for shots fired by the player.
 class Projectile(Sprite):
