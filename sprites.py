@@ -7,6 +7,7 @@ from os import path
 from ctypes import Array
 from random import uniform, randint, choice
 from player_states import *
+from mob_states import *
 from state_machine import *
 
 
@@ -276,7 +277,7 @@ class Player(Sprite):
             
 
         
-# Enemy sprite class that currently moves toward the player. Will soon use pathfinding to hunt player
+# Enemy sprite class with a small state machine for passive patrol and player targeting.
 class Mob(Sprite): 
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.all_mobs #group
@@ -284,7 +285,13 @@ class Mob(Sprite):
         # mobs use the same vector-based position and collision pattern as the player
         self.game = game
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(RED) #only difference from player, the color
+        # black means passive; red means this mob has detected and is targeting the player
+        self.passive_color = BLACK
+        self.targeting_color = RED
+        # pink is reserved for the attack flash while the mob is touching the player
+        self.attack_color = PINK
+        self.base_color = self.passive_color
+        self.image.fill(self.base_color)
         self.rect = self.image.get_rect()
         self.vel = vec(0,0)
         self.pos = vec(x,y) * TILESIZE
@@ -296,17 +303,58 @@ class Mob(Sprite):
         self.hit_flash_time = 0
         # patrol_dir stores which way the mob moves; 1 is right and -1 is left
         self.patrol_dir = 1
+        # move_dir is set by the active mob state before movement is applied
+        self.move_dir = self.patrol_dir
+        self.targeting_player = False
+        self.attacking_player = False
+        # mob state machine separates detection decisions from movement/collision code
+        self.state_machine = StateMachine()
+        # state order matters because passive is the starting behavior when the mob spawns
+        self.states: Array[State] = [MobPassiveState(self), MobTargetingState(self), MobAttackingState(self)]
+        self.state_machine.start_machine(self.states)
+
+    def set_base_color(self, color):
+        # base color is the normal color restored after the brief hit flash ends
+        self.base_color = color
+        self.image.fill(self.base_color)
+
+    def player_in_detection_radius(self):
+        # detection uses distance in pixels so the setting can stay tile-based and easy to tune
+        detection_radius = MOB_AGGRO_RADIUS_TILES * TILESIZE
+        distance_to_player = vec(self.game.player.rect.center) - vec(self.rect.center)
+        return distance_to_player.length_squared() <= detection_radius * detection_radius
+
+    def player_touching(self):
+        # attack state begins when the mob hitbox overlaps the player hitbox
+        return self.hit_rect.colliderect(self.game.player.hit_rect)
+
+    def target_player(self):
+        # targeting currently means moving horizontally toward the player
+        # later this is the method A* can replace with path-based movement
+        if self.game.player.rect.centerx < self.rect.centerx:
+            self.move_dir = -1
+        elif self.game.player.rect.centerx > self.rect.centerx:
+            self.move_dir = 1
+        else:
+            self.move_dir = 0
 
     def update(self): 
+        # let the mob state decide whether this mob patrols or targets the player
+        self.state_machine.update()
         now = pg.time.get_ticks()
         # quick white flash makes it obvious when a mob takes projectile damage
         if now - self.hit_flash_time < 120:
             self.image.fill(WHITE)
+        elif self.attacking_player and (now // MOB_ATTACK_FLASH_MS) % 2 == 0:
+            # attacking mobs blink pink while they are in contact with the player
+            self.image.fill(self.attack_color)
         else:
-            self.image.fill(RED)
+            self.image.fill(self.base_color)
 
-        # simple alpha-safe enemy behavior: patrol horizontally and reverse when blocked
-        self.vel.x = MOB_SPEED * self.patrol_dir
+        # passive mobs patrol, while targeting mobs use move_dir set by target_player()
+        if not self.targeting_player:
+            self.move_dir = self.patrol_dir
+        self.vel.x = MOB_SPEED * self.move_dir
         # mobs use the same gravity constants as the player so they land on platforms
         self.vel.y += GRAVITY * self.game.dt
         if self.vel.y > MAX_FALL_SPEED:
@@ -317,9 +365,9 @@ class Mob(Sprite):
         self.hit_rect.centerx = self.pos.x #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
 
-        # hitting a wall zeroes x velocity, so reverse direction after the collision response
-        if self.vel.x == 0:
-            # flipping the sign makes the mob walk away from the wall next frame
+        # passive mobs reverse at walls; targeting mobs keep trying to move toward the player
+        if self.vel.x == 0 and not self.targeting_player:
+            # flipping the sign makes the passive mob walk away from the wall next frame
             self.patrol_dir *= -1
 
         # vertical pass lets the mob fall and stand on tiles without affecting patrol direction

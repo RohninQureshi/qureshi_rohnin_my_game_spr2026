@@ -19,6 +19,8 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 BLACK = (0, 0, 0) 
+# pink is used only for the mob attacking flash so it stands out from normal red targeting
+PINK = (255, 105, 180)
 
 # player movement values
 # speed values are in pixels per second because movement is multiplied by delta time
@@ -45,6 +47,8 @@ MOB_PATH_RECALC_MS = 250
 MOB_MAX_HEALTH = 100
 MOB_DAMAGE = 25
 MOB_DAMAGE_COOLDOWN = 800
+# attack flash controls how fast touching mobs blink pink
+MOB_ATTACK_FLASH_MS = 120
 
 
 
