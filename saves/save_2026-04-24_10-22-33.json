@@ -1,7 +1,7 @@
 {
-    "timestamp": "2026-04-21T13:08:27.914400",
-    "current_level_index": 3,
-    "current_level_file": "level4.txt",
+    "timestamp": "2026-04-24T10:22:33.474360",
+    "current_level_index": 0,
+    "current_level_file": "level1.txt",
     "music_volume": 0.5,
     "sfx_volume": 0.5,
     "keybinds": {
@@ -13,5 +13,9 @@
         "shoot": 102,
         "pause": 112,
         "settings": 111
-    }
+    },
+    "player_armor": 0,
+    "player_weapon_damage": 100,
+    "player_max_ammo": 10,
+    "player_ammo": 10
 }

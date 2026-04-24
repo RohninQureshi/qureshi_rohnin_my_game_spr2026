@@ -8,6 +8,7 @@ from ctypes import Array
 from random import uniform, randint, choice
 from player_states import *
 from mob_states import *
+from sentinel_states import *
 from state_machine import *
 
 
@@ -605,11 +606,21 @@ class SentinelBoss(Sprite):
         self.next_attack = "shoot"
         self.shot_cd = Cooldown(SENTINEL_SHOT_COOLDOWN)
         self.hit_flash_time = 0
+        # boss attack phases now use the shared state machine instead of one long update chain
+        self.state_machine = StateMachine()
+        self.states: Array[State] = [
+            SentinelWaitState(self),
+            SentinelShootState(self),
+            SentinelChargeWarnState(self),
+            SentinelChargeState(self),
+            SentinelRecoverState(self),
+        ]
         # initialize arena bounds immediately so charge logic can read them safely later
         self.keep_inside_arena()
+        self.state_machine.start_machine(self.states)
 
     def set_mode(self, mode):
-        # all boss attack timing is measured from when the current mode began
+        # state enter methods call set_mode so the boss keeps one shared timing and color setup path
         self.mode = mode
         self.mode_start_time = pg.time.get_ticks()
 
@@ -630,6 +641,14 @@ class SentinelBoss(Sprite):
         else:
             self.image.fill(YELLOW)
 
+    def get_mode_color(self):
+        # hit flash restores to the correct attack color after orange damage feedback ends
+        if self.mode == "charge":
+            return RED
+        if self.mode == "recover":
+            return WHITE
+        return YELLOW
+
     def update(self):
         # boss rects are kept aligned with position every frame for camera and collision
         self.rect.center = self.pos
@@ -645,58 +664,14 @@ class SentinelBoss(Sprite):
         now = pg.time.get_ticks()
 
         if now - self.hit_flash_time >= 120:
-            # after hit flash ends, restore the color that matches the current attack mode
-            if self.mode == "charge":
-                self.image.fill(RED)
-            elif self.mode == "recover":
-                self.image.fill(WHITE)
-            else:
-                self.image.fill(YELLOW)
+            # after hit flash ends, restore the color that matches the active Sentinel state
+            self.image.fill(self.get_mode_color())
         else:
             # brief orange flash gives feedback when projectiles damage the boss
             self.image.fill((255, 120, 0))
 
-        if self.mode == "wait":
-            # wait gives the player a short breather before the next pattern starts
-            self.vel.x = 0
-            if now - self.mode_start_time > 1000:
-                if self.next_attack == "shoot":
-                    self.set_mode("shoot")
-                else:
-                    self.set_mode("charge_warn")
-
-        elif self.mode == "shoot":
-            # shoot mode fires aimed projectiles for a short burst
-            if self.shot_cd.ready():
-                self.shot_cd.start()
-                self.shoot_at_player()
-            if now - self.mode_start_time > 1800:
-                self.next_attack = "charge"
-                self.set_mode("recover")
-
-        elif self.mode == "charge_warn":
-            # warning pause lifts the boss upward before the horizontal charge begins
-            self.vel.x = 0
-            rise_progress = min(1, (now - self.mode_start_time) / 900)
-            self.pos.y = self.spawn_y - SENTINEL_CHARGE_HEIGHT * rise_progress
-            if now - self.mode_start_time > 900:
-                self.set_mode("charge")
-
-        elif self.mode == "charge":
-            # charge moves from right to left until it crosses about 75 percent of the arena
-            self.vel.x = -SENTINEL_CHARGE_SPEED
-            self.pos.x += self.vel.x * self.game.dt
-            if self.pos.x <= self.charge_target_x or self.pos.x <= self.left_bound:
-                self.next_attack = "shoot"
-                self.set_mode("recover")
-
-        elif self.mode == "recover":
-            # recovery is the safe window before the boss returns to its right-side start point
-            self.vel.x = 0
-            if now - self.mode_start_time > 1000:
-                self.pos.x = self.spawn_x
-                self.pos.y = self.spawn_y
-                self.set_mode("wait")
+        # state objects now decide which attack pattern runs each frame
+        self.state_machine.update()
 
         # final clamp prevents the boss from entering the solid border wall tiles
         self.keep_inside_arena()
