@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-24 10:02:26'
+__updated__ = '2026-04-24 12:09:54'
 
 
 import pygame as pg
@@ -95,6 +95,21 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "shoot": "Shoot",
             "pause": "Pause",
             "settings": "Settings",
+        }
+        # special display names keep the settings menu readable for non-letter keys
+        self.special_key_names = {
+            pg.K_RETURN: "ENTER",
+            pg.K_SPACE: "SPACE",
+            pg.K_LSHIFT: "LEFT SHIFT",
+            pg.K_RSHIFT: "RIGHT SHIFT",
+            pg.K_LCTRL: "LEFT CTRL",
+            pg.K_RCTRL: "RIGHT CTRL",
+            pg.K_UP: "UP ARROW",
+            pg.K_DOWN: "DOWN ARROW",
+            pg.K_LEFT: "LEFT ARROW",
+            pg.K_RIGHT: "RIGHT ARROW",
+            pg.K_ESCAPE: "ESC",
+            pg.K_TAB: "TAB",
         }
         # None means the settings menu is not waiting for a new key press
         self.rebinding_action = None
@@ -393,15 +408,50 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         self.save_progress()
                     continue
 
-                if event.key == pg.K_ESCAPE:
-                    if current_state == "settings":
-                        # escape from settings returns to the menu state that opened it
-                        self.state_machine.transition(self.settings_previous_state)
-                    else:
-                        # escape is treated as a full quit shortcut outside settings
+                # menu states are handled first so hardcoded menu controls cannot be blocked by a rebind
+                if current_state == "start":
+                    if event.key == pg.K_ESCAPE:
+                        # escape still acts as a quit shortcut from the title screen
                         if self.playing:
                             self.playing = False
                         self.running = False
+                    elif event.key == pg.K_RETURN:
+                        # start screen always uses Enter, even if Enter is rebound to another action
+                        self.state_machine.transition("playing")
+                    elif event.key == self.keybinds["settings"]:
+                        # settings can still be opened from the title with the player's chosen key
+                        self.settings_previous_state = current_state
+                        self.state_machine.transition("settings")
+                    continue
+
+                if current_state == "settings":
+                    if event.key == pg.K_ESCAPE:
+                        # escape from settings returns to the menu state that opened it
+                        self.state_machine.transition(self.settings_previous_state)
+                    elif event.key == pg.K_RETURN and self.settings_selected >= 2:
+                        # selecting a keybind option starts waiting for the next key press
+                        # subtract 2 because the first two menu rows are volume settings
+                        action_index = self.settings_selected - 2
+                        self.rebinding_action = self.rebindable_actions[action_index]
+                    elif event.key == pg.K_UP:
+                        # wrap selection upward through the settings options
+                        self.settings_selected = (self.settings_selected - 1) % self.settings_option_count()
+                    elif event.key == pg.K_DOWN:
+                        # wrap selection downward through the settings options
+                        self.settings_selected = (self.settings_selected + 1) % self.settings_option_count()
+                    elif event.key == pg.K_LEFT:
+                        # left lowers the selected setting value
+                        self.change_setting(-0.05)
+                    elif event.key == pg.K_RIGHT:
+                        # right raises the selected setting value
+                        self.change_setting(0.05)
+                    continue
+
+                if event.key == pg.K_ESCAPE:
+                    # outside settings, escape is treated as a full quit shortcut
+                    if self.playing:
+                        self.playing = False
+                    self.running = False
 
                 elif event.key == self.keybinds["pause"]: #transition into or out of pause state
                     # pause only toggles between the two gameplay-related states
@@ -411,21 +461,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         self.state_machine.transition("playing")
 
                 elif event.key == self.keybinds["settings"]:
-                    if current_state == "start" or current_state == "paused":
+                    if current_state == "paused":
                         # remember where settings was opened so ESC can return to the correct screen
                         self.settings_previous_state = current_state
                         self.state_machine.transition("settings")
 
-
-                elif event.key == pg.K_RETURN: #transition into playing state
-                    if current_state == "start":
-                        # enter starts the run from the title screen
-                        self.state_machine.transition("playing")
-                    elif current_state == "settings" and self.settings_selected >= 2:
-                        # selecting a keybind option starts waiting for the next key press
-                        # subtract 2 because the first two menu rows are volume settings
-                        action_index = self.settings_selected - 2
-                        self.rebinding_action = self.rebindable_actions[action_index]
                 elif event.key == pg.K_TAB:
                     # manual save hotkey for testing the save system
                     self.save_progress()
@@ -433,26 +473,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     if current_state == "game_won" or current_state == "game_over":
                         # R only restarts from finished states, so gameplay cannot be reset by accident mid-run
                         self.restart_from_title()
-
-                elif event.key == pg.K_UP:
-                    if current_state == "settings":
-                        # wrap selection upward through the settings options
-                        self.settings_selected = (self.settings_selected - 1) % self.settings_option_count()
-
-                elif event.key == pg.K_DOWN:
-                    if current_state == "settings":
-                        # wrap selection downward through the settings options
-                        self.settings_selected = (self.settings_selected + 1) % self.settings_option_count()
-
-                elif event.key == pg.K_LEFT:
-                    if current_state == "settings":
-                        # left lowers the selected setting value
-                        self.change_setting(-0.05)
-
-                elif event.key == pg.K_RIGHT:
-                    if current_state == "settings":
-                        # right raises the selected setting value
-                        self.change_setting(0.05)
 
 
     
@@ -593,8 +613,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         pg.display.flip()
 
     def key_name_for(self, action):
-        # pygame converts key constants back into readable names for the settings screen
-        return pg.key.name(self.keybinds[action]).upper()
+        # special keys get custom labels so the settings screen says ENTER instead of RETURN, etc.
+        key = self.keybinds[action]
+        if key in self.special_key_names:
+            return self.special_key_names[key]
+        return pg.key.name(key).upper()
 
     def settings_option_count(self):
         # two volume settings plus every rebindable control option
@@ -678,7 +701,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         if self.rebinding_action is not None:
             # this message tells the player the next key press will replace the selected control
             label = self.keybind_labels[self.rebinding_action]
-            self.draw_text(f"Press a new key for {label}", 24, YELLOW, WIDTH / 2, HEIGHT - 155)
+            self.draw_text(f"Press a new key for {label}", 24, YELLOW, WIDTH / 2, HEIGHT - 700)
 
         # controls are shown directly on the menu so the player knows how to use it
         self.draw_text("UP/DOWN to select", 22, WHITE, WIDTH / 2, HEIGHT - 120)
