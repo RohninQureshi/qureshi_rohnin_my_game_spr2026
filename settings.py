@@ -37,6 +37,10 @@ AMMO_PICKUP_AMOUNT = 5
 # sprint timing is stored in milliseconds because pygame's clock uses milliseconds
 SPRINT_DURATION = 5000      
 SPRINT_RESET_TIME = 10000
+# dash is a short burst move separate from sprint, tuned for dodging boss attacks
+DASH_SPEED = 900
+DASH_DURATION = 140
+DASH_COOLDOWN = 3000
 # gravity and jump velocity control the basic platforming feel
 GRAVITY = 1800
 JUMP_VELOCITY = -700
@@ -78,11 +82,14 @@ PARTICLE_GRAVITY = 500
 SPRINT_PARTICLE_DELAY = 70
 PROJECTILE_TRAIL_DELAY = 45
 LANDING_PARTICLE_MIN_SPEED = 300
+# dash effects use faster timing than sprint so the burst reads as distinct movement
+DASH_PARTICLE_DELAY = 35
 # afterimages are transparent image copies used to show speed during sprinting and shooting
 AFTERIMAGE_LIFETIME = 220
-AFTERIMAGE_START_ALPHA = 120
+AFTERIMAGE_START_ALPHA = 160
 SPRINT_AFTERIMAGE_DELAY = 85
 PROJECTILE_AFTERIMAGE_DELAY = 55
+DASH_AFTERIMAGE_DELAY = 30
 
 # sentinel boss values
 # boss health is intentionally high so the fight lasts longer than a normal mob encounter

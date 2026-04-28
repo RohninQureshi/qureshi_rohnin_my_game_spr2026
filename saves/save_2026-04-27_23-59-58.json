@@ -1,5 +1,5 @@
 {
-    "timestamp": "2026-04-24T12:02:02.597009",
+    "timestamp": "2026-04-27T23:59:58.361160",
     "current_level_index": 0,
     "current_level_file": "level1.txt",
     "music_volume": 0.5,
@@ -9,6 +9,7 @@
         "down": 115,
         "left": 97,
         "right": 100,
+        "dash": 32,
         "sprint": 1073742049,
         "shoot": 102,
         "pause": 112,

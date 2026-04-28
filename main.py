@@ -78,19 +78,23 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "down": pg.K_s,
             "left": pg.K_a,
             "right": pg.K_d,
+            # dash starts as left control, but it stays rebindable like the other gameplay actions
+            "dash": pg.K_LCTRL,
             "sprint": pg.K_LSHIFT,
             "shoot": pg.K_f,
             "pause": pg.K_p,
             "settings": pg.K_o,
         }
         # these are the controls the player is allowed to change from the settings menu
-        self.rebindable_actions = ["jump", "down", "left", "right", "sprint", "shoot", "pause", "settings"]
+        self.rebindable_actions = ["jump", "down", "left", "right", "dash", "sprint", "shoot", "pause", "settings"]
         # labels are separate from keybinds so the menu can show readable names instead of code keys
         self.keybind_labels = {
             "jump": "Jump / Aim Up",
             "down": "Aim Down",
             "left": "Move Left",
             "right": "Move Right",
+            # dash gets its own row in settings so players can tune movement controls without editing code
+            "dash": "Dash",
             "sprint": "Sprint",
             "shoot": "Shoot",
             "pause": "Pause",
@@ -581,7 +585,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw_damage_vignette()
             draw_health_bar(self.screen, 10, 10, self.player.health) # draw overlay text after the world so state-specific UI appears on top
             # sprint timer is part of the HUD layer, so it renders after the world just like the health bar
-            self.draw_sprint_timer()
+            self.draw_movement_timers()
             self.draw_progression_hud()
             self.draw_boss_health_bar()
         
@@ -726,8 +730,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         pg.draw.rect(vignette, (255, 0, 0, alpha), (WIDTH - thickness, 0, thickness, HEIGHT))
         self.screen.blit(vignette, (0, 0))
 
-    def draw_sprint_timer(self):
-        # picks a different HUD message depending on whether sprint is active, cooling down, or ready
+    def draw_movement_timers(self):
+        # sprint message changes depending on whether sprint is active, cooling down, or ready
         if self.player.sprinting:
             remaining_ms = max(0, SPRINT_DURATION - (pg.time.get_ticks() - self.player.sprint_start_time))
             sprint_text = f"Sprint: {remaining_ms / 1000:.1f}s"
@@ -737,16 +741,32 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         else:
             sprint_text = "Sprint: READY"
 
-        # draws the sprint status in the top-right corner so the player can track the timer mid-run
+        # dash has its own cooldown readout so the player knows when the dodge burst is ready again
+        if self.player.dashing:
+            remaining_ms = max(0, DASH_DURATION - (pg.time.get_ticks() - self.player.dash_start_time))
+            dash_text = f"Dash: {remaining_ms / 1000:.2f}s"
+        elif self.player.dash_cd.ready():
+            dash_text = "Dash: READY"
+        else:
+            remaining_ms = max(0, DASH_COOLDOWN - (pg.time.get_ticks() - self.player.dash_cd.start_time))
+            dash_text = f"Dash CD: {remaining_ms / 1000:.1f}s"
+
+        # movement timers draw in the top-right corner so dash and sprint can be tracked together
         font_name = pg.font.match_font("arial")
         font = pg.font.Font(font_name, 24)
-        text_surface = font.render(sprint_text, True, WHITE)
-        text_rect = text_surface.get_rect()
-        text_rect.topright = (WIDTH - 10, 10)
-        self.screen.blit(text_surface, text_rect)
+        sprint_surface = font.render(sprint_text, True, WHITE)
+        sprint_rect = sprint_surface.get_rect()
+        sprint_rect.topright = (WIDTH - 10, 10)
+        self.screen.blit(sprint_surface, sprint_rect)
+
+        # dash is drawn on its own line so sprint and dash timers can be read at the same time
+        dash_surface = font.render(dash_text, True, WHITE)
+        dash_rect = dash_surface.get_rect()
+        dash_rect.topright = (WIDTH - 10, 36)
+        self.screen.blit(dash_surface, dash_rect)
 
     def draw_progression_hud(self):
-        # ammo, armor, and weapon damage sit under the sprint timer so progression is always visible
+        # ammo, armor, and weapon damage sit under the movement timers so progression is always visible
         font_name = pg.font.match_font("arial")
         font = pg.font.Font(font_name, 22)
         hud_lines = [
@@ -758,7 +778,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         for index, line in enumerate(hud_lines):
             text_surface = font.render(line, True, WHITE)
             text_rect = text_surface.get_rect()
-            text_rect.topright = (WIDTH - 10, 42 + index * 24)
+            text_rect.topright = (WIDTH - 10, 68 + index * 24)
             self.screen.blit(text_surface, text_rect)
 
     def draw_text(self, text, size, color, x, y):  # function that draws text on the screen

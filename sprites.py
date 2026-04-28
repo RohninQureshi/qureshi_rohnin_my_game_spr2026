@@ -63,6 +63,7 @@ class Player(Sprite):
         self.no_ammo_cd = Cooldown(700)
         # these booleans and input fields are read by player_states.py instead of one large state method
         self.sprinting = False
+        self.dashing = False
         self.walking = False
         self.on_ground = False
         self.health = 100
@@ -71,29 +72,46 @@ class Player(Sprite):
         self.weapon_damage = PLAYER_STARTING_WEAPON_DAMAGE
         self.max_ammo = PLAYER_MAX_AMMO
         self.ammo = self.max_ammo
+        # facing_dir remembers the last horizontal direction so dash still works from a standstill
         self.move_dir = 0
+        self.facing_dir = 1
         self.jump_pressed = False
         self.down_pressed = False
+        # dash_pressed is the one-frame press event; dash_held tracks the live key state for edge detection
+        self.dash_pressed = False
+        self.dash_held = False
+        self.prev_dash_held = False
         self.sprint_held = False
         self.aim_dir = vec(1, 0)
         self.last_update = 0
         self.current_frame = 0
         self.projectile_cd = Cooldown(500)
+        # dash uses its own cooldown instead of sharing sprint's longer recharge window
+        self.dash_cd = Cooldown(DASH_COOLDOWN)
         self.sprint_reset_cd = Cooldown(SPRINT_RESET_TIME)
         self.sprint_cooling_down = False
+        self.dash_start_time = 0
+        self.dash_dir = 1
         self.sprint_start_time = 0
         # sprint particles use their own timer so the dust trail does not spawn every frame
         self.last_sprint_particle_time = 0
         # sprint afterimages are separate from dust and create the speed blur effect
         self.last_sprint_afterimage_time = 0
+        # dash uses faster effect timing so the burst feels sharper than sprint
+        self.last_dash_particle_time = 0
+        self.last_dash_afterimage_time = 0
         # player has its own movement-focused state machine separate from the game-wide one
         self.state_machine = StateMachine()
-        self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self)]
+        self.states: Array[State] = [PlayerIdleState(self), PlayerMoveState(self), PlayerSprintState(self), PlayerDashState(self)]
         self.state_machine.start_machine(self.states)
 
         
     def get_key_movement(self): #function for movement
         self.vel.x = 0 #only reset x movement so gravity can keep affecting y velocity
+        if self.dashing:
+            # dash locks horizontal speed to the stored burst direction for its full duration
+            self.vel.x = self.dash_dir * DASH_SPEED
+            return
         # sprint only changes horizontal speed; gravity still owns the y axis
         speed = PLAYER_SPEED
         if self.sprinting:
@@ -114,6 +132,9 @@ class Player(Sprite):
         keys = pg.key.get_pressed()
 
         if keys[self.game.keybinds["shoot"]]:
+            if self.dashing:
+                # dash temporarily owns the player's action timing, so shooting waits until the burst ends
+                return
             if self.ammo <= 0:
                 # show feedback only every 700ms so holding shoot does not flood the screen
                 if self.no_ammo_cd.ready():
@@ -160,8 +181,15 @@ class Player(Sprite):
             self.move_dir -= 1
         if keys[self.game.keybinds["right"]]:
             self.move_dir += 1
+        if self.move_dir != 0:
+            # facing direction is saved separately so dash still works from a standstill after the player last moved
+            self.facing_dir = 1 if self.move_dir > 0 else -1
         self.jump_pressed = keys[self.game.keybinds["jump"]]
         self.down_pressed = keys[self.game.keybinds["down"]]
+        self.dash_held = keys[self.game.keybinds["dash"]]
+        # dash should trigger on the press edge, not every frame the key is held
+        self.dash_pressed = self.dash_held and not self.prev_dash_held
+        self.prev_dash_held = self.dash_held
         self.sprint_held = keys[self.game.keybinds["sprint"]]
 
         # vertical aim has priority so jump can also aim upward, while down aims downward
@@ -181,9 +209,13 @@ class Player(Sprite):
     def wants_to_move(self): #movement states use this to determine whether the player intends to move horizontally
         return self.move_dir != 0
 
+    def wants_to_dash(self):
+        # dash can use live movement direction or the last facing direction so it works from a standstill
+        return self.dash_pressed and self.dash_cd.ready()
+
     def wants_to_sprint(self): #sprint can only start while moving and while its reset cooldown is inactive
         # changing direction does not cancel sprint; only releasing sprint, stopping, or the timer can end it
-        return self.sprint_held and self.wants_to_move() and not self.sprint_cooling_down
+        return self.sprint_held and self.wants_to_move() and not self.sprint_cooling_down and not self.dashing
 
     def start_sprint(self): #called by the sprint state when sprinting begins
         if not self.sprinting:
@@ -206,6 +238,27 @@ class Player(Sprite):
             return False
         # compares the live clock against sprint_start_time to decide whether the sprint window is still active
         return pg.time.get_ticks() - self.sprint_start_time < SPRINT_DURATION
+
+    def start_dash(self):
+        # dash stores its own direction once so later input changes do not bend the burst
+        self.dashing = True
+        self.sprinting = False
+        self.walking = True
+        self.dash_start_time = pg.time.get_ticks()
+        self.dash_cd.start()
+        self.dash_dir = self.facing_dir
+        if self.move_dir != 0:
+            self.dash_dir = 1 if self.move_dir > 0 else -1
+
+    def stop_dash(self):
+        # leaving dash only clears dash-specific flags because the next movement state sets the rest
+        self.dashing = False
+
+    def should_keep_dashing(self):
+        # dash ends strictly by timer so the burst length stays consistent
+        if not self.dashing:
+            return False
+        return pg.time.get_ticks() - self.dash_start_time < DASH_DURATION
 
     def animate(self): #I made my spritesheet differently, making each row a state, rather then a charencter or thing
         now = pg.time.get_ticks() #gets current time
@@ -290,6 +343,17 @@ class Player(Sprite):
         # landing dust only appears after a real fall so small slopes or tiny bumps stay quiet
         if not was_on_ground and self.on_ground and fall_speed > LANDING_PARTICLE_MIN_SPEED:
             self.game.spawn_hit_particles(self.rect.midbottom, WHITE, 12)
+
+        # dash uses its own faster particles and afterimages so the burst stands out from sprint
+        now = pg.time.get_ticks()
+        if self.dashing and now - self.last_dash_particle_time >= DASH_PARTICLE_DELAY:
+            self.last_dash_particle_time = now
+            dash_x = self.rect.centerx - (self.dash_dir * TILESIZE // 2)
+            self.game.spawn_hit_particles((dash_x, self.rect.bottom), WHITE, 2)
+
+        if self.dashing and now - self.last_dash_afterimage_time >= DASH_AFTERIMAGE_DELAY:
+            self.last_dash_afterimage_time = now
+            self.game.spawn_afterimage(self.image, self.rect.copy())
 
         # sprint dust appears from behind the player while sprinting on the ground
         now = pg.time.get_ticks()

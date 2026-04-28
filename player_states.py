@@ -1,4 +1,3 @@
-
 from state_machine import State
 
 
@@ -22,8 +21,10 @@ class PlayerIdleState(State):
         pass
 
     def update(self):
-        # idle changes to sprint or move as soon as the player starts moving
-        if self.player.wants_to_sprint():
+        # dash has the highest priority because it is a burst action, not a held movement mode
+        if self.player.wants_to_dash():
+            self.player.state_machine.transition("dash")
+        elif self.player.wants_to_sprint():
             self.player.state_machine.transition("sprint")
         elif self.player.wants_to_move():
             self.player.state_machine.transition("move")
@@ -48,8 +49,10 @@ class PlayerMoveState(State):
         pass
 
     def update(self):
-        # move changes either to sprint if shift is active or back to idle if motion stops
-        if self.player.wants_to_sprint():
+        # dash can interrupt normal movement immediately because it is a dodge input
+        if self.player.wants_to_dash():
+            self.player.state_machine.transition("dash")
+        elif self.player.wants_to_sprint():
             self.player.state_machine.transition("sprint")
         elif not self.player.wants_to_move():
             self.player.state_machine.transition("idle")
@@ -73,11 +76,44 @@ class PlayerSprintState(State):
         self.player.stop_sprint()
 
     def update(self):
+        # dash can interrupt sprint because it is a stronger burst move with its own cooldown
+        if self.player.wants_to_dash():
+            self.player.state_machine.transition("dash")
+            return
+
         # keep walking synced to live input so a brief turn-around pause does not cancel sprint itself
         self.player.walking = self.player.wants_to_move()
-        # sprint now ends only when its timer expires or sprint input is released
+        # sprint now ends only when its timer expires or input is released
         if not self.player.should_keep_sprinting():
             if self.player.wants_to_move():
+                self.player.state_machine.transition("move")
+            else:
+                self.player.state_machine.transition("idle")
+
+
+# Player state for a short horizontal dodge burst.
+class PlayerDashState(State):
+    def __init__(self, player):
+        self.player = player
+
+    def get_state_name(self):
+        # dash has its own state so the burst can temporarily override walk and sprint logic
+        return "dash"
+
+    def enter(self):
+        # entering dash delegates setup to Player so timing and direction stay centralized
+        self.player.start_dash()
+
+    def exit(self):
+        # leaving dash routes through one helper so cleanup stays in one place
+        self.player.stop_dash()
+
+    def update(self):
+        # dash lasts only for its configured burst duration
+        if not self.player.should_keep_dashing():
+            if self.player.wants_to_sprint():
+                self.player.state_machine.transition("sprint")
+            elif self.player.wants_to_move():
                 self.player.state_machine.transition("move")
             else:
                 self.player.state_machine.transition("idle")
