@@ -1,0 +1,6 @@
+# Python bytecode cache files are machine-generated and should not be versioned.
+__pycache__/
+*.py[cod]
+
+# Local save files are runtime data, not source code.
+saves/*.json

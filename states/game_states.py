@@ -65,7 +65,8 @@ class GamePlayingState(State):
         # boss body contact uses its own cooldown so the player is not deleted instantly
         boss_body_hits = pg.sprite.spritecollide(self.game.player, self.game.all_bosses, False)
         if boss_body_hits and self.game.boss_damage_cd.ready():
-            damage = self.game.damage_player(SENTINEL_CONTACT_DAMAGE)
+            # read contact damage from the boss object so future bosses can hit harder or softer without new branches
+            damage = self.game.damage_player(boss_body_hits[0].contact_damage)
             self.game.add_damage_number(self.game.player.rect.center, damage, RED)
             self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
             self.game.boss_damage_cd.start()
@@ -73,7 +74,9 @@ class GamePlayingState(State):
         # boss projectiles damage the player and disappear when they hit
         boss_projectile_hits = pg.sprite.spritecollide(self.game.player, self.game.all_boss_projectiles, True)
         if boss_projectile_hits:
-            damage = self.game.damage_player(SENTINEL_PROJECTILE_DAMAGE * len(boss_projectile_hits))
+            # each projectile carries its own damage so different bosses can share the same collision logic
+            total_projectile_damage = sum(projectile.damage for projectile in boss_projectile_hits)
+            damage = self.game.damage_player(total_projectile_damage)
             self.game.add_damage_number(self.game.player.rect.center, damage, RED)
             self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
 

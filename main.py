@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-24 12:09:54'
+__updated__ = '2026-04-29 09:42:54'
 
 
 import pygame as pg
@@ -32,7 +32,8 @@ from settings import *
 from sprites import *
 from utils import *
 from state_machine import StateMachine
-from game_states import *
+from states.game_states import *
+from bosses.boss_registry import BOSS_SPAWN_TABLE
 import json
 from datetime import datetime
 
@@ -362,9 +363,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     WeaponPickup(self, col, row)
                 if tile == 'B':
                     AmmoPickup(self, col, row)
-                if tile == 'S':
-                    # S marks the Sentinel boss spawn in the level text file
-                    self.boss = SentinelBoss(self, col, row)
+                if tile in BOSS_SPAWN_TABLE:
+                    # boss spawning now uses a registry so adding a new boss only requires one new table entry
+                    boss_class = BOSS_SPAWN_TABLE[tile]
+                    self.boss = boss_class(self, col, row)
         # every fresh level rebuild gives the player full health for a clean level start
         self.player.health = 100
         # progression stats come from Game, so ammo does not reset when entering the next level
@@ -678,8 +680,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         outline_rect = pg.Rect(x, y, bar_width, bar_height)
         fill_rect = pg.Rect(x, y, bar_width * health_pct, bar_height)
 
-        # boss health draws near the top center so it does not cover the player health bar
-        self.draw_text("SENTINEL", 24, WHITE, WIDTH / 2, 15)
+        # display_name lets different bosses reuse the same HUD code without hardcoding their names here
+        self.draw_text(self.boss.display_name, 24, WHITE, WIDTH / 2, 15)
         pg.draw.rect(self.screen, RED, fill_rect)
         pg.draw.rect(self.screen, WHITE, outline_rect, 2)
 
