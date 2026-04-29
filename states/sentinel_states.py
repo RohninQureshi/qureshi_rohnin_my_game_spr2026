@@ -21,11 +21,14 @@ class SentinelWaitState(State):
 
     def update(self):
         # after a short breather, switch to whichever pattern was queued previously
+        # next_attack is what lets the boss rotate patterns without one giant if-chain in SentinelBoss.update()
         if pg.time.get_ticks() - self.boss.mode_start_time > 1000:
             if self.boss.next_attack == "shoot":
                 self.boss.state_machine.transition("shoot")
-            else:
+            elif self.boss.next_attack == "charge":
                 self.boss.state_machine.transition("charge_warn")
+            else:
+                self.boss.state_machine.transition("ground_pound_lock")
 
 
 # Shoot state fires aimed projectiles at the player for a brief burst.
@@ -101,6 +104,85 @@ class SentinelChargeState(State):
         self.boss.pos.x += self.boss.vel.x * self.boss.game.dt
 
         if self.boss.pos.x <= self.boss.charge_target_x or self.boss.pos.x <= self.boss.left_bound:
+            self.boss.next_attack = "ground_pound"
+            self.boss.state_machine.transition("recover")
+
+
+# Lock-on phase tracks the player's x position before the ground pound is committed.
+class SentinelGroundPoundLockState(State):
+    def __init__(self, boss):
+        # keep a reference to the boss so the state can steer it over the player
+        self.boss = boss
+
+    def get_state_name(self):
+        # ground_pound_lock is the horizontal tracking phase before the warning pause
+        return "ground_pound_lock"
+
+    def enter(self):
+        # entering this phase raises the boss and resets the slam impact flag
+        self.boss.set_mode("ground_pound_lock")
+
+    def update(self):
+        # track the player's current x while staying inside arena bounds
+        # right_bound mirrors keep_inside_arena() so the lock-on cannot place the boss inside the wall border
+        right_bound = self.boss.game.map.width - TILESIZE - self.boss.hit_rect.width / 2
+        player_x = self.boss.game.player.rect.centerx
+        target_x = max(self.boss.left_bound, min(player_x, right_bound))
+        self.boss.pound_target_x = target_x
+        self.boss.pos.x = target_x
+
+        # after the lock-on time ends, freeze in place for the visible warning pause
+        if pg.time.get_ticks() - self.boss.mode_start_time > SENTINEL_POUND_LOCK_TIME:
+            self.boss.state_machine.transition("ground_pound_warn")
+
+
+# Warning phase pauses directly above the player so the slam can be read and dashed.
+class SentinelGroundPoundWarnState(State):
+    def __init__(self, boss):
+        # keep a reference to the boss so the state can hold position before the drop
+        self.boss = boss
+
+    def get_state_name(self):
+        # ground_pound_warn is the last telegraph before the committed downward attack
+        return "ground_pound_warn"
+
+    def enter(self):
+        # entering warning freezes x and y so the player gets a stable visual cue
+        self.boss.set_mode("ground_pound_warn")
+        self.boss.pos.x = self.boss.pound_target_x
+
+    def update(self):
+        # keep the hover lane fixed during warning so only the player moves
+        self.boss.pos.x = self.boss.pound_target_x
+        if pg.time.get_ticks() - self.boss.mode_start_time > SENTINEL_POUND_WARN_TIME:
+            self.boss.state_machine.transition("ground_pound_drop")
+
+
+# Drop phase slams straight down and deals area damage when the boss lands.
+class SentinelGroundPoundDropState(State):
+    def __init__(self, boss):
+        # keep a reference to the boss so the state can drive the fast vertical descent
+        self.boss = boss
+
+    def get_state_name(self):
+        # ground_pound_drop is the active slam itself
+        return "ground_pound_drop"
+
+    def enter(self):
+        # entering drop commits the lane and clears the one-time impact check
+        self.boss.set_mode("ground_pound_drop")
+        self.boss.pos.x = self.boss.pound_target_x
+        self.boss.pound_impact_done = False
+
+    def update(self):
+        # the slam moves straight down without horizontal steering once the attack begins
+        self.boss.pos.x = self.boss.pound_target_x
+        self.boss.pos.y += SENTINEL_POUND_DROP_SPEED * self.boss.game.dt
+
+        if self.boss.pos.y >= self.boss.spawn_y:
+            # clamp to the floor position and apply the landing damage exactly once
+            self.boss.pos.y = self.boss.spawn_y
+            self.boss.apply_ground_pound_impact()
             self.boss.next_attack = "shoot"
             self.boss.state_machine.transition("recover")
 

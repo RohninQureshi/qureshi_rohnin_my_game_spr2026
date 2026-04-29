@@ -102,6 +102,14 @@ SENTINEL_SHOT_COOLDOWN = 700
 SENTINEL_CHARGE_SPEED = 900
 # the boss rises this many pixels during its charge so the body is easier to shoot
 SENTINEL_CHARGE_HEIGHT = TILESIZE * 4
+# ground pound timing is split into lock, warning, and drop so the player has a readable dodge window
+SENTINEL_POUND_LOCK_TIME = 400
+SENTINEL_POUND_WARN_TIME = 250
+SENTINEL_POUND_DROP_SPEED = 1700
+SENTINEL_POUND_HEIGHT = TILESIZE * 5
+# ground pound damage is area based, so the radius controls how close the player can safely stand
+SENTINEL_POUND_DAMAGE = 30
+SENTINEL_POUND_RADIUS = TILESIZE * 3
 SENTINEL_CONTACT_DAMAGE = 25
 SENTINEL_CONTACT_COOLDOWN = 900
 PLAYER_PROJECTILE_BOSS_DAMAGE = 100

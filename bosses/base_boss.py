@@ -34,9 +34,10 @@ class BaseBoss(Sprite):
         self.default_color = color
         self.hit_flash_color = (255, 120, 0)
 
-        # these defaults let game_states.py read boss damage directly from the active boss object
+        # these defaults let shared combat code read damage from any boss without boss-name checks.
+        # Subclasses should replace these with their own values during __init__.
         self.contact_damage = 0
-        self.contact_cooldown = SENTINEL_CONTACT_COOLDOWN
+        self.contact_cooldown = 0
         self.projectile_damage = 0
 
         # hit_flash_time controls the short orange flash when the boss takes damage

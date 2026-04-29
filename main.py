@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-29 09:42:54'
+__updated__ = '2026-04-29 14:23:30'
 
 
 import pygame as pg
@@ -165,6 +165,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def save_progress(self):
         # writes a new timestamped save file, then removes older extras
+        # copy live player stats first so closing mid-level saves current ammo, armor, and damage
+        self.store_player_progression()
         # ensure the folder exists before trying to open a save path inside it
         self.ensure_save_dir()
         # timestamp makes each save file unique and easy to sort by date
@@ -178,6 +180,15 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # after writing a new save, delete older extras to keep the folder small
         self.prune_old_saves(keep_count=3)
 
+    def quit_game(self):
+        # one quit helper keeps window close and Escape from having different save behavior
+        # saving here means normal exits remember the latest level, settings, keybinds, and progression
+        self.save_progress()
+
+        # stop the inner gameplay loop first, then stop the outer application loop
+        if self.playing:
+            self.playing = False
+        self.running = False
 
     def load_latest_save(self):
         # finds the newest save file in the saves folder and restores the saved level index
@@ -266,7 +277,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         pg.mixer.music.set_volume(self.music_volume)
         # load the current level immediately so the first call to new() can build the map
         self.map = Map(path.join(self.level_dir, self.levels[self.current_level_index]))
-        print('data is loaded')
 
     def apply_audio_settings(self):
         # applies current volume variables to pygame's music channel and sound effects
@@ -393,10 +403,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # all global keyboard and window events are handled here
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                # closing the window should stop both the active run and the outer game loop
-                if self.playing:
-                    self.playing = False
-                self.running = False
+                # closing the window uses the same save-and-quit path as the keyboard quit shortcut
+                self.quit_game()
 
             elif event.type == pg.KEYDOWN:
                 current_state = self.state_machine.current_state.get_state_name()
@@ -418,9 +426,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 if current_state == "start":
                     if event.key == pg.K_ESCAPE:
                         # escape still acts as a quit shortcut from the title screen
-                        if self.playing:
-                            self.playing = False
-                        self.running = False
+                        self.quit_game()
                     elif event.key == pg.K_RETURN:
                         # start screen always uses Enter, even if Enter is rebound to another action
                         self.state_machine.transition("playing")
@@ -455,10 +461,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
                 if event.key == pg.K_ESCAPE:
                     # outside settings, escape is treated as a full quit shortcut
-                    if self.playing:
-                        self.playing = False
-                    self.running = False
-
+                    self.quit_game()
                 elif event.key == self.keybinds["pause"]: #transition into or out of pause state
                     # pause only toggles between the two gameplay-related states
                     if current_state == "playing":

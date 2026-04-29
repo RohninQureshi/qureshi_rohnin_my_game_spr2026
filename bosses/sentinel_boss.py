@@ -34,7 +34,12 @@ class SentinelBoss(BaseBoss):
         self.spawn_y = self.pos.y - TILESIZE // 2
         self.pos.y = self.spawn_y
         self.charge_y = self.spawn_y - SENTINEL_CHARGE_HEIGHT
+        # pound_hover_y is where the boss waits before dropping straight down onto the player
+        self.pound_hover_y = self.spawn_y - SENTINEL_POUND_HEIGHT
         self.charge_target_x = self.spawn_x - self.game.map.width * 0.75
+        # pound_target_x is set during the lock-on phase so the drop uses a committed lane
+        self.pound_target_x = self.pos.x
+        self.pound_impact_done = False
 
         # mode is still kept as a readable summary string even though the state machine runs the logic now.
         self.mode = "wait"
@@ -49,6 +54,9 @@ class SentinelBoss(BaseBoss):
             SentinelShootState(self),
             SentinelChargeWarnState(self),
             SentinelChargeState(self),
+            SentinelGroundPoundLockState(self),
+            SentinelGroundPoundWarnState(self),
+            SentinelGroundPoundDropState(self),
             SentinelRecoverState(self),
         ])
 
@@ -67,6 +75,21 @@ class SentinelBoss(BaseBoss):
             # charge begins from the raised height so the player can still shoot under the boss
             self.pos.y = self.charge_y
             self.set_display_color(RED)
+        elif mode == "ground_pound_lock":
+            # lock-on moves to a hovering position above the player before the slam is committed
+            self.pos.y = self.pound_hover_y
+            self.vel.x = 0
+            self.pound_impact_done = False
+            self.set_display_color(YELLOW)
+        elif mode == "ground_pound_warn":
+            # warning pause keeps the boss still so the player has a readable dodge window
+            self.pos.y = self.pound_hover_y
+            self.vel.x = 0
+            self.set_display_color((255, 165, 0))
+        elif mode == "ground_pound_drop":
+            # once the drop starts, x is fixed and only vertical movement matters
+            self.vel.x = 0
+            self.set_display_color(RED)
         elif mode == "recover":
             # recover uses white so the player can visually read a safer damage window
             self.set_display_color(WHITE)
@@ -76,6 +99,10 @@ class SentinelBoss(BaseBoss):
     def get_idle_color(self):
         # hit flash returns to a different color depending on which Sentinel state is currently active
         if self.mode == "charge":
+            return RED
+        if self.mode == "ground_pound_warn":
+            return (255, 165, 0)
+        if self.mode == "ground_pound_drop":
             return RED
         if self.mode == "recover":
             return WHITE
@@ -118,6 +145,23 @@ class SentinelBoss(BaseBoss):
         if direction.length_squared() == 0:
             direction = vec(-1, 0)
         SentinelProjectile(self.game, self.rect.centerx, self.rect.centery, direction)
+
+    def apply_ground_pound_impact(self):
+        # impact should only happen once per drop, even though the boss remains on the ground for several frames
+        if self.pound_impact_done:
+            return
+
+        self.pound_impact_done = True
+        # landing burst makes the slam feel heavy and easy to notice
+        self.game.spawn_hit_particles(self.rect.midbottom, YELLOW, 22)
+
+        # measure from the boss center to the player center so the slam checks a simple circular danger radius
+        distance_to_player = vec(self.game.player.rect.center).distance_to(self.rect.center)
+        if distance_to_player <= SENTINEL_POUND_RADIUS and self.game.boss_damage_cd.ready():
+            damage = self.game.damage_player(SENTINEL_POUND_DAMAGE)
+            self.game.add_damage_number(self.game.player.rect.center, damage, RED)
+            self.game.spawn_hit_particles(self.game.player.rect.center, RED, 10)
+            self.game.boss_damage_cd.start()
 
 
 # Projectile fired by the Sentinel boss toward the player.
