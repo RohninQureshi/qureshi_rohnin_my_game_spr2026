@@ -21,7 +21,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-29 14:23:30'
+__updated__ = '2026-04-30 14:29:22'
 
 
 import pygame as pg
@@ -254,7 +254,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         for old_save in save_files[keep_count:]:
             # remove every save past the limit to keep only the most recent ones
             os.remove(old_save)
-
 
     # a method is a function tied to a Class
 
