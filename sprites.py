@@ -78,6 +78,7 @@ class Player(Sprite):
         self.move_dir = 0
         self.facing_dir = 1
         self.jump_pressed = False
+        self.aim_up_pressed = False
         self.down_pressed = False
         # dash_pressed is the one-frame press event; dash_held tracks the live key state for edge detection
         self.dash_pressed = False
@@ -94,7 +95,8 @@ class Player(Sprite):
         self.sprint_reset_cd = Cooldown(SPRINT_RESET_TIME)
         self.sprint_cooling_down = False
         self.dash_start_time = 0
-        self.dash_dir = 1
+        # dash_dir is a vector so dash can move horizontally or upward depending on input
+        self.dash_dir = vec(1, 0)
         self.sprint_start_time = 0
         # sprint particles use their own timer so the dust trail does not spawn every frame
         self.last_sprint_particle_time = 0
@@ -112,9 +114,9 @@ class Player(Sprite):
     def get_key_movement(self): #function for movement
         self.vel.x = 0 #only reset x movement so gravity can keep affecting y velocity
         if self.dashing:
-            # dash locks horizontal speed to the stored burst direction for its full duration
+            # dash locks speed to the stored burst direction for its full duration
             # this prevents turning mid-dash, which keeps dash useful for dodging boss attacks
-            self.vel.x = self.dash_dir * DASH_SPEED
+            self.vel = self.dash_dir * DASH_SPEED
             return
         # sprint only changes horizontal speed; gravity still owns the y axis
         speed = PLAYER_SPEED
@@ -191,6 +193,7 @@ class Player(Sprite):
             # facing direction is saved separately so dash still works from a standstill after the player last moved
             self.facing_dir = 1 if self.move_dir > 0 else -1
         self.jump_pressed = keys[self.game.keybinds["jump"]]
+        self.aim_up_pressed = keys[self.game.keybinds["aim_up"]]
         self.down_pressed = keys[self.game.keybinds["down"]]
         self.dash_held = keys[self.game.keybinds["dash"]]
         # dash should trigger on the press edge, not every frame the key is held
@@ -198,9 +201,9 @@ class Player(Sprite):
         self.prev_dash_held = self.dash_held
         self.sprint_held = keys[self.game.keybinds["sprint"]]
 
-        # vertical aim has priority so jump can also aim upward, while down aims downward
+        # vertical aim has priority, but aim_up is separate from jump so jumping does not force shots upward
         # if no aim key is pressed, the player keeps the last aim direction instead of snapping to default
-        if self.jump_pressed:
+        if self.aim_up_pressed:
             self.aim_dir = vec(0, -1)
         elif self.down_pressed:
             self.aim_dir = vec(0, 1)
@@ -254,9 +257,16 @@ class Player(Sprite):
         self.walking = True
         self.dash_start_time = pg.time.get_ticks()
         self.dash_cd.start()
-        self.dash_dir = self.facing_dir
-        if self.move_dir != 0:
-            self.dash_dir = 1 if self.move_dir > 0 else -1
+
+        if self.aim_up_pressed:
+            # holding Aim Up while pressing dash turns the burst into a vertical escape option
+            self.dash_dir = vec(0, -1)
+        elif self.move_dir != 0:
+            # live horizontal input decides dash direction when the player is actively moving
+            self.dash_dir = vec(1 if self.move_dir > 0 else -1, 0)
+        else:
+            # standing still uses the last faced direction so dash remains available without movement input
+            self.dash_dir = vec(self.facing_dir, 0)
 
     def stop_dash(self):
         # leaving dash only clears dash-specific flags because the next movement state sets the rest
@@ -310,10 +320,12 @@ class Player(Sprite):
         self.get_key_movement()
         self.get_key_projectile()
 
-        self.vel.y += GRAVITY * self.game.dt #gravity only affects vertical speed
-        if self.vel.y > MAX_FALL_SPEED:
-            # cap falling speed so collision has a chance to catch the player before tunneling through tiles
-            self.vel.y = MAX_FALL_SPEED
+        if not self.dashing:
+            # gravity pauses during dash so an upward dash is a clean burst instead of being pulled down instantly
+            self.vel.y += GRAVITY * self.game.dt #gravity only affects vertical speed
+            if self.vel.y > MAX_FALL_SPEED:
+                # cap falling speed so collision has a chance to catch the player before tunneling through tiles
+                self.vel.y = MAX_FALL_SPEED
 
         # horizontal motion is resolved first so wall collisions are stable before the vertical pass
         self.pos.x += self.vel.x * self.game.dt
@@ -361,8 +373,10 @@ class Player(Sprite):
         now = pg.time.get_ticks()
         if self.dashing and now - self.last_dash_particle_time >= DASH_PARTICLE_DELAY:
             self.last_dash_particle_time = now
-            dash_x = self.rect.centerx - (self.dash_dir * TILESIZE // 2)
-            self.game.spawn_hit_particles((dash_x, self.rect.bottom), WHITE, 2)
+            # particles spawn behind the dash direction, so upward dash leaves dust below the player
+            dash_offset = self.dash_dir * -(TILESIZE // 2)
+            dash_pos = vec(self.rect.center) + dash_offset
+            self.game.spawn_hit_particles(dash_pos, WHITE, 2)
 
         if self.dashing and now - self.last_dash_afterimage_time >= DASH_AFTERIMAGE_DELAY:
             self.last_dash_afterimage_time = now

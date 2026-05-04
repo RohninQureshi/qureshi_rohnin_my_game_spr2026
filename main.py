@@ -77,6 +77,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # keybinds keep controls in one place so the settings menu can change them
         self.keybinds = {
             "jump": pg.K_w,
+            # aim_up is separate from jump so the player can jump without forcing shots upward
+            "aim_up": pg.K_UP,
             "down": pg.K_s,
             "left": pg.K_a,
             "right": pg.K_d,
@@ -88,10 +90,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "settings": pg.K_o,
         }
         # these are the controls the player is allowed to change from the settings menu
-        self.rebindable_actions = ["jump", "down", "left", "right", "dash", "sprint", "shoot", "pause", "settings"]
+        self.rebindable_actions = ["jump", "aim_up", "down", "left", "right", "dash", "sprint", "shoot", "pause", "settings"]
         # labels are separate from keybinds so the menu can show readable names instead of code keys
         self.keybind_labels = {
-            "jump": "Jump / Aim Up",
+            "jump": "Jump",
+            "aim_up": "Aim Up",
             "down": "Aim Down",
             "left": "Move Left",
             "right": "Move Right",
@@ -565,6 +568,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
         
         if current_state != "start":
+            # boss warnings draw under sprites so danger zones are readable without covering characters
+            self.draw_boss_warnings()
             # afterimages draw before real sprites so they look like a trail behind motion
             for afterimage in self.all_afterimages:
                 self.screen.blit(afterimage.image, self.camera.apply(afterimage))
@@ -675,6 +680,47 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         pg.draw.rect(self.screen, RED, fill_rect)
         pg.draw.rect(self.screen, WHITE, outline_rect, 2)
 
+    def draw_boss_warnings(self):
+        # this method draws boss attack telegraphs that are not normal sprites
+        # it stays in main.py because warnings are screen/camera overlays, not physical level objects
+        if self.boss is None or not self.boss.alive() or self.camera is None:
+            return
+
+        # Sentinel ground pound is currently the only boss attack with a floor warning
+        # hasattr keeps this safe for future bosses that do not use pound_target_x or mode
+        if not hasattr(self.boss, "mode") or not hasattr(self.boss, "pound_target_x"):
+            return
+
+        if self.boss.mode not in ("ground_pound_lock", "ground_pound_warn"):
+            return
+
+        # the warning column shows the full dangerous lane where the ground pound can hit
+        warning_width = SENTINEL_POUND_RADIUS * 2
+        warning_height = self.map.height - TILESIZE * 2
+        warning_rect = pg.Rect(0, TILESIZE, warning_width, warning_height)
+        warning_rect.centerx = self.boss.pound_target_x
+
+        if self.boss.mode == "ground_pound_lock":
+            # yellow means the target is still tracking the player and is not locked yet
+            warning_color = (255, 255, 0)
+            warning_alpha = 55
+        else:
+            # red opacity works like a visual timer: higher alpha means the drop is closer
+            elapsed = pg.time.get_ticks() - self.boss.mode_start_time
+            progress = min(1, elapsed / SENTINEL_POUND_WARN_TIME)
+            warning_color = (255, 0, 0)
+            warning_alpha = int(45 + progress * 185)
+
+        # draw on a transparent screen-sized layer so off-screen warning rectangles are clipped safely
+        warning_layer = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        screen_rect = warning_rect.move(self.camera.camera.topleft)
+        pg.draw.rect(warning_layer, (*warning_color, warning_alpha), screen_rect)
+
+        # outline is slightly stronger than the fill so the danger edge is readable during motion
+        outline_alpha = min(255, warning_alpha + 45)
+        pg.draw.rect(warning_layer, (*warning_color, outline_alpha), screen_rect, 3)
+        self.screen.blit(warning_layer, (0, 0))
+
     def draw_settings_menu(self):
         # settings gets a plain screen so it is readable from both title and pause
         self.screen.fill(BLACK)
@@ -684,20 +730,21 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.draw_slider("Music Volume", self.music_volume, WIDTH / 2, HEIGHT / 4, self.settings_selected == 0)
         self.draw_slider("SFX Volume", self.sfx_volume, WIDTH / 2, HEIGHT / 4 + 90, self.settings_selected == 1)
 
-        # keybind rows start after the two slider rows
-        keybind_start_y = HEIGHT / 4 + 170
+        # keybind rows are compact so the controls guide can stay readable at the bottom
+        keybind_start_y = HEIGHT / 4 + 150
+        keybind_spacing = 25
         for index, action in enumerate(self.rebindable_actions):
             # menu_index accounts for the two volume rows before the keybind rows
             menu_index = index + 2
             label = self.keybind_labels[action]
             option = f"{label}: {self.key_name_for(action)}"
             color = YELLOW if menu_index == self.settings_selected else WHITE
-            self.draw_text(option, 26, color, WIDTH / 2, keybind_start_y + index * 32)
+            self.draw_text(option, 22, color, WIDTH / 2, keybind_start_y + index * keybind_spacing)
 
         if self.rebinding_action is not None:
-            # this message tells the player the next key press will replace the selected control
+            # this message sits above the controls guide so it does not overlap the settings list
             label = self.keybind_labels[self.rebinding_action]
-            self.draw_text(f"Press a new key for {label}", 24, YELLOW, WIDTH / 2, HEIGHT - 700)
+            self.draw_text(f"Press a new key for {label}", 24, YELLOW, WIDTH / 2, HEIGHT - 150)
 
         # controls are shown directly on the menu so the player knows how to use it
         self.draw_text("UP/DOWN to select", 22, WHITE, WIDTH / 2, HEIGHT - 120)
