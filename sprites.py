@@ -20,6 +20,7 @@ def collide_hit_rect(one, two):  #creating a function so that all classes can us
 
 def collide_with_walls(sprite, group, dir): # A function that checks for collision on the x and y plane, and does physics based on it
     # collision is split by axis so sliding along walls works instead of snapping diagonally
+    # this is why update() moves x first, checks walls, then moves y and checks walls again
     if dir == 'x': #checks for dir (only does x)
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
         if hits:
@@ -32,6 +33,7 @@ def collide_with_walls(sprite, group, dir): # A function that checks for collisi
             sprite.hit_rect.centerx = sprite.pos.x # setting the center of the player to be the position
     if dir == 'y': #checks for dir (only does y)
         # vertical collision decides whether the sprite landed on a floor or hit its head
+        # on_ground is only set during downward collision so wall-side contact does not count as standing
         hits = pg.sprite.spritecollide(sprite, group, False, collide_hit_rect)
         if hits:
             # print("collided with wall in the y dir")
@@ -61,6 +63,7 @@ class Player(Sprite):
         self.hit_rect = PLAYER_HIT_RECT.copy()
         self.no_ammo_cd = Cooldown(700)
         # these booleans and input fields are read by player_states.py instead of one large state method
+        # the state file decides what mode the player is in, while this class still owns physics and collisions
         self.sprinting = False
         self.dashing = False
         self.walking = False
@@ -84,6 +87,7 @@ class Player(Sprite):
         self.aim_dir = vec(1, 0)
         self.last_update = 0
         self.current_frame = 0
+        # projectile_cd controls fire rate, separate from ammo so both systems can be balanced independently
         self.projectile_cd = Cooldown(500)
         # dash uses its own cooldown instead of sharing sprint's longer recharge window
         self.dash_cd = Cooldown(DASH_COOLDOWN)
@@ -109,6 +113,7 @@ class Player(Sprite):
         self.vel.x = 0 #only reset x movement so gravity can keep affecting y velocity
         if self.dashing:
             # dash locks horizontal speed to the stored burst direction for its full duration
+            # this prevents turning mid-dash, which keeps dash useful for dodging boss attacks
             self.vel.x = self.dash_dir * DASH_SPEED
             return
         # sprint only changes horizontal speed; gravity still owns the y axis
@@ -130,6 +135,7 @@ class Player(Sprite):
     def get_key_projectile(self):
         keys = pg.key.get_pressed()
 
+        # shooting is checked from held input so the player can hold shoot, but cooldown still controls fire rate
         if keys[self.game.keybinds["shoot"]]:
             if self.dashing:
                 # dash temporarily owns the player's action timing, so shooting waits until the burst ends
@@ -174,6 +180,7 @@ class Player(Sprite):
     def update_input_flags(self): #read current controls once so the state machine can decide movement state
         keys = pg.key.get_pressed() #gets the keys pressed
         # cache movement intent once here so both the player logic and state logic read the same input
+        # doing this once per frame avoids different methods reading slightly different input states
         self.move_dir = 0
         # movement reads from game.keybinds so controls can be changed in the settings menu
         if keys[self.game.keybinds["left"]]:
@@ -192,6 +199,7 @@ class Player(Sprite):
         self.sprint_held = keys[self.game.keybinds["sprint"]]
 
         # vertical aim has priority so jump can also aim upward, while down aims downward
+        # if no aim key is pressed, the player keeps the last aim direction instead of snapping to default
         if self.jump_pressed:
             self.aim_dir = vec(0, -1)
         elif self.down_pressed:
@@ -240,6 +248,7 @@ class Player(Sprite):
 
     def start_dash(self):
         # dash stores its own direction once so later input changes do not bend the burst
+        # starting dash also cancels sprint because both are special movement states
         self.dashing = True
         self.sprinting = False
         self.walking = True
@@ -293,6 +302,8 @@ class Player(Sprite):
     def update(self): #frame-by-frame player update for movement, physics, and objective checks
         # save grounded state before physics so landing can be detected after collision resolves
         was_on_ground = self.on_ground
+        # the order here matters: input -> state machine -> velocity -> collision -> pickups
+        # changing that order can cause bugs like jump not registering or collision using old velocity
         self.update_input_flags() #refresh player input before the state machine decides how to move
         self.state_machine.update() #the player state machine now replaces the old state() method
         # input intent is turned into actual velocity after the state machine sets sprint / walk state
@@ -301,6 +312,7 @@ class Player(Sprite):
 
         self.vel.y += GRAVITY * self.game.dt #gravity only affects vertical speed
         if self.vel.y > MAX_FALL_SPEED:
+            # cap falling speed so collision has a chance to catch the player before tunneling through tiles
             self.vel.y = MAX_FALL_SPEED
 
         # horizontal motion is resolved first so wall collisions are stable before the vertical pass
@@ -322,6 +334,7 @@ class Player(Sprite):
         c_hits = pg.sprite.spritecollide(self,self.game.all_coins,True)
         if c_hits:
             # coin particles are spawned before the level changes so pickup feedback appears immediately
+            # killing the coin on collision prevents the same level clear from triggering multiple times
             for coin in c_hits:
                 self.game.spawn_hit_particles(coin.rect.center, YELLOW, 16)
             # collecting the coin is the level goal, so the level clear state handles what comes next
@@ -332,6 +345,7 @@ class Player(Sprite):
         p_hits = pg.sprite.spritecollide(self, self.game.all_powerups, True)
         if p_hits:
             # powerups change progression stats without ending the level
+            # apply() is polymorphic: each pickup class decides which stat it changes
             for powerup in p_hits:
                 powerup.apply(self)
                 self.game.spawn_hit_particles(powerup.rect.center, powerup.color, 14)
@@ -403,6 +417,7 @@ class Mob(Sprite):
         self.targeting_player = False
         self.attacking_player = False
         # mob state machine separates detection decisions from movement/collision code
+        # passive/targeting/attacking states change flags; update() turns those flags into movement and visuals
         self.state_machine = StateMachine()
         # state order matters because passive is the starting behavior when the mob spawns
         self.states: Array[State] = [MobPassiveState(self), MobTargetingState(self), MobAttackingState(self)]
@@ -415,6 +430,7 @@ class Mob(Sprite):
 
     def player_in_detection_radius(self):
         # detection uses distance in pixels so the setting can stay tile-based and easy to tune
+        # length_squared avoids a square-root calculation while still comparing true distance
         detection_radius = MOB_AGGRO_RADIUS_TILES * TILESIZE
         distance_to_player = vec(self.game.player.rect.center) - vec(self.rect.center)
         return distance_to_player.length_squared() <= detection_radius * detection_radius
@@ -435,6 +451,7 @@ class Mob(Sprite):
 
     def update(self): 
         # let the mob state decide whether this mob patrols or targets the player
+        # movement happens after state updates so the newest state decision affects the same frame
         self.state_machine.update()
         now = pg.time.get_ticks()
         # quick white flash makes it obvious when a mob takes projectile damage
@@ -456,6 +473,7 @@ class Mob(Sprite):
             self.vel.y = MAX_FALL_SPEED
 
         # resolve horizontal movement first so wall hits can flip patrol direction cleanly
+        # this matches player collision and keeps platforming physics consistent across moving sprites
         self.pos.x += self.vel.x * self.game.dt
         self.hit_rect.centerx = self.pos.x #recentering hitbox
         collide_with_walls(self, self.game.all_walls, 'x') #loading collide with walls for x
@@ -609,6 +627,7 @@ class Projectile(Sprite):
 
     def update(self):
         # move the projectile in world space using delta time just like other moving objects
+        # because pos is a Vector2, movement can stay smooth even though rect positions are integers
         self.pos += self.vel * self.game.dt
         self.rect.center = self.pos
         # trails and afterimages are visual feedback only; projectile collision still uses the real rect
@@ -623,6 +642,7 @@ class Projectile(Sprite):
         # remove projectiles as soon as they hit a solid wall tile
         if pg.sprite.spritecollideany(self, self.game.all_walls):
             # wall particles make missed shots easier to see
+            # the projectile is killed here so wall collision is handled before combat collision in main.py
             self.game.spawn_hit_particles(self.rect.center, RED, 4)
             self.kill()
 

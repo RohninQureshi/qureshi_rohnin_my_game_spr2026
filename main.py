@@ -34,6 +34,7 @@ from utils import *
 from state_machine import StateMachine
 from states.game_states import *
 from bosses.boss_registry import BOSS_SPAWN_TABLE
+from tile_registry import TILE_SPAWN_TABLE, spawn_boss
 import json
 from datetime import datetime
 
@@ -356,26 +357,13 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         
         for row, tiles in enumerate(self.map.data): #this section of code loads the entities (wall,player,mobs) based upon the map data we made (level1.txt), by enumerating through each cahrecter, and looking at it's value and pos.
             for col, tile, in enumerate(tiles):
-                # each map character spawns a different object into the world
-                # this keeps level design inside text files instead of hardcoding positions
-                if tile == '1':
-                    Wall(self, col, row)
-                if tile =='P':
-                    self.player = Player(self, col, row)
-                if tile =='M':
-                    self.mob = Mob(self, col, row)
-                if tile =='C':
-                    self.coin = Coin(self, col, row)
-                if tile == 'A':
-                    ArmorPickup(self, col, row)
-                if tile == 'W':
-                    WeaponPickup(self, col, row)
-                if tile == 'B':
-                    AmmoPickup(self, col, row)
-                if tile in BOSS_SPAWN_TABLE:
-                    # boss spawning now uses a registry so adding a new boss only requires one new table entry
-                    boss_class = BOSS_SPAWN_TABLE[tile]
-                    self.boss = boss_class(self, col, row)
+                # tile_registry.py owns what each normal level character means
+                # this keeps main.py focused on loading the map instead of knowing every object class
+                if tile in TILE_SPAWN_TABLE:
+                    TILE_SPAWN_TABLE[tile](self, col, row)
+                elif tile in BOSS_SPAWN_TABLE:
+                    # boss letters stay in the boss registry because each boss has its own module and states
+                    spawn_boss(self, col, row, tile)
         # every fresh level rebuild gives the player full health for a clean level start
         self.player.health = 100
         # progression stats come from Game, so ammo does not reset when entering the next level
