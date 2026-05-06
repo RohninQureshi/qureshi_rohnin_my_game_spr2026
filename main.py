@@ -19,9 +19,67 @@ https://www.bfxr.net/
 # music:
 https://incompetech.com/music/royalty-free/
 
+
+
+Target for May 17:
+
+Polish Sentinel completely
+Make the ground pound, warning column, dash/upward dash, damage, health, and arena feel fair and intentional.
+
+Add one new boss using your current architecture
+Give it:
+
+bosses/new_boss.py
+states/new_boss_states.py
+boss_registry.py entry
+a level tile
+2 attack patterns
+clear warning visuals
+Improve the normal levels leading into bosses
+Add better pickup placement, ammo pressure, armor/weapon rewards, and platforming that prepares the player for the boss mechanics.
+
+Do one mob improvement
+Either smarter chase behavior or simple pathfinding. Do not attempt full complicated A* unless the rest is stable.
+
+Final polish
+Clean comments, remove __pycache__, test save/load, settings, game over, win screen, and make sure GitHub is clean.
+
+
+Boss 2 was not fully locked in yet, but based on your boss-skill plan, the best role for Boss 2 should be:
+
+Main skill: target priority / crowd control
+Secondary skill: movement
+
+
+Why:
+- Sentinel already tests reaction + dash movement.
+- Boss 2 should not just be “Sentinel but different.”
+- Adding mobs/summons or multiple threats forces the player to decide what to shoot first.
+- Movement still matters because the player has to dodge while managing enemies.
+
+Good Boss 2 concept:
+
+
+The Hive Warden
+
+
+Tests:
+- Target priority
+- Crowd control
+- Ammo management
+- Movement under pressure
+
+Attacks:
+- Summons small mobs.
+- Fires slow projectiles.
+- Creates danger zones that force the player to move.
+- Maybe becomes vulnerable after summons are cleared.
+
+This would make Boss 2 feel meaningfully different from Sentinel.
+
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-04-30 14:29:22'
+__updated__ = '2026-05-06 10:33:34'
 
 
 import pygame as pg
@@ -55,7 +113,6 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         pg.display.set_caption(TITLE)
         self.clock = pg.time.Clock()
         self.running = True #creating variables for the state of the game, and they are boolean so the game cant be half running for example
-        self.playing = True
         # cooldown objects track timed actions without needing extra frame counters
         self.game_cooldown = Cooldown(3000) #in milliseconds
         self.mob_damage_cd = Cooldown(MOB_DAMAGE_COOLDOWN)

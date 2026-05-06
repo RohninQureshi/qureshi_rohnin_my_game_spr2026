@@ -219,3 +219,21 @@ class GameWonState(State):
     def update(self):
         # win state waits for restart input rather than updating gameplay
         pass
+
+
+class GameLevelSelectState(State):
+    def  __init__(self):
+        super().__init__()
+    
+    def get_state_name(self):
+        return super().get_state_name()
+    
+    def enter(self):
+        return super().enter()
+    
+    def exit(self):
+        return super().exit()
+    
+    def update(self):
+        return super().update()
+    
