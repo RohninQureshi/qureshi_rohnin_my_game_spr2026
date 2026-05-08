@@ -26,7 +26,7 @@ Target for May 17:
 Polish Sentinel completely
 Make the ground pound, warning column, dash/upward dash, damage, health, and arena feel fair and intentional.
 
-Add one new boss using your current architecture
+Add one new boss using current architecture
 Give it:
 
 bosses/new_boss.py
@@ -39,13 +39,13 @@ Improve the normal levels leading into bosses
 Add better pickup placement, ammo pressure, armor/weapon rewards, and platforming that prepares the player for the boss mechanics.
 
 Do one mob improvement
-Either smarter chase behavior or simple pathfinding. Do not attempt full complicated A* unless the rest is stable.
+Either smarter chase behavior or simple pathfinding.  No full complicated A* unless the rest is stable.
 
 Final polish
 Clean comments, remove __pycache__, test save/load, settings, game over, win screen, and make sure GitHub is clean.
 
 
-Boss 2 was not fully locked in yet, but based on your boss-skill plan, the best role for Boss 2 should be:
+Boss 2 was not fully locked in yet, but based on boss-skill plan, the best role for Boss 2 should be:
 
 Main skill: target priority / crowd control
 Secondary skill: movement
@@ -60,7 +60,7 @@ Why:
 Good Boss 2 concept:
 
 
-The Hive Warden
+The Warden
 
 
 Tests:
@@ -75,11 +75,10 @@ Attacks:
 - Creates danger zones that force the player to move.
 - Maybe becomes vulnerable after summons are cleared.
 
-This would make Boss 2 feel meaningfully different from Sentinel.
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-05-06 10:33:34'
+__updated__ = '2026-05-08 09:12:45'
 
 
 import pygame as pg
@@ -127,6 +126,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # settings_previous_state works like a back button for settings opened from start or pause
         self.settings_previous_state = "start"
         self.settings_selected = 0
+        # level_select_index tracks which level row is highlighted in the level select menu
+        self.level_select_index = 0
         self.music_volume = 0.5
         self.sfx_volume = 0.5
         # run progression is stored on Game so stats can survive between level rebuilds
@@ -144,10 +145,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "sprint": pg.K_LSHIFT,
             "shoot": pg.K_f,
             "pause": pg.K_p,
+            # main_menu only works from pause so it cannot accidentally interrupt active gameplay
+            "main_menu": pg.K_m,
             "settings": pg.K_o,
         }
         # these are the controls the player is allowed to change from the settings menu
-        self.rebindable_actions = ["jump", "aim_up", "down", "left", "right", "dash", "sprint", "shoot", "pause", "settings"]
+        self.rebindable_actions = ["jump", "aim_up", "down", "left", "right", "dash", "sprint", "shoot", "pause", "main_menu", "settings"]
         # labels are separate from keybinds so the menu can show readable names instead of code keys
         self.keybind_labels = {
             "jump": "Jump",
@@ -160,6 +163,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "sprint": "Sprint",
             "shoot": "Shoot",
             "pause": "Pause",
+            "main_menu": "Main Menu",
             "settings": "Settings",
         }
         # special display names keep the settings menu readable for non-letter keys
@@ -195,6 +199,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             GameOverState(self),
             GameLevelClearState(self),
             GameWonState(self),
+            GameLevelSelectState(self),
         ]
 
         # registers the game flow states and enters the first one in the list
@@ -477,10 +482,32 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                     elif event.key == pg.K_RETURN:
                         # start screen always uses Enter, even if Enter is rebound to another action
                         self.state_machine.transition("playing")
+                    elif event.key == pg.K_l:
+                        # level select is a separate state so the title screen stays simple
+                        self.state_machine.transition("level_select")
                     elif event.key == self.keybinds["settings"]:
                         # settings can still be opened from the title with the player's chosen key
                         self.settings_previous_state = current_state
                         self.state_machine.transition("settings")
+                    continue
+
+                if current_state == "level_select":
+                    if event.key == pg.K_ESCAPE:
+                        # escape backs out to the title without changing the current level
+                        self.state_machine.transition("start")
+                    elif event.key == pg.K_UP:
+                        # wrap upward so every level can be reached with repeated key presses
+                        self.level_select_index = (self.level_select_index - 1) % len(self.levels)
+                    elif event.key == pg.K_DOWN:
+                        # wrap downward for the same reason as UP
+                        self.level_select_index = (self.level_select_index + 1) % len(self.levels)
+                    elif event.key == pg.K_RETURN:
+                        # selecting a level starts a fresh run from that level
+                        self.current_level_index = self.level_select_index
+                        self.reset_player_progression()
+                        self.load_current_level()
+                        self.new()
+                        self.state_machine.transition("playing")
                     continue
 
                 if current_state == "settings":
@@ -515,6 +542,13 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         self.state_machine.transition("paused")
                     elif current_state == "paused":
                         self.state_machine.transition("playing")
+
+                elif event.key == self.keybinds["main_menu"]:
+                    if current_state == "paused":
+                        # main menu return is pause-only so the player cannot leave gameplay by accident
+                        # saving first preserves the current level, keybinds, settings, and progression
+                        self.save_progress()
+                        self.state_machine.transition("start")
 
                 elif event.key == self.keybinds["settings"]:
                     if current_state == "paused":
@@ -624,7 +658,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH / 2, HEIGHT / 3) # calling of draw text
         # self.draw_text(str(self.player.pos), 24, WHITE, WIDTH / 2, HEIGHT-TILESIZE*3) # calling of draw text
         
-        if current_state != "start":
+        if current_state not in ("start", "level_select"):
             # boss warnings draw under sprites so danger zones are readable without covering characters
             self.draw_boss_warnings()
             # afterimages draw before real sprites so they look like a trail behind motion
@@ -646,6 +680,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         if current_state == "paused":
             self.draw_text("PAUSED", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
             self.draw_text(f"Press {self.key_name_for('settings')} for settings", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 35)
+            self.draw_text(f"Press {self.key_name_for('main_menu')} for main menu", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 70)
             
 
         if current_state == "game_over":
@@ -659,6 +694,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw_text("VANTABLADE", 64, WHITE, WIDTH / 2, HEIGHT / 3)
             self.draw_text("Press ENTER to start", 28, WHITE, WIDTH / 2, HEIGHT / 2)
             self.draw_text(f"Press {self.key_name_for('settings')} for settings", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 40)
+            self.draw_text("Press L for level select", 24, WHITE, WIDTH / 2, HEIGHT / 2 + 80)
+        if current_state == "level_select":
+            # level select gets its own menu so no gameplay HUD renders behind it
+            self.draw_level_select_menu()
         if current_state == "game_won":
             # win screen keeps the restart prompt consistent with the game over screen
             self.draw_text("YOU WIN", 48, WHITE, WIDTH / 2, HEIGHT / 2 - 24)
@@ -669,6 +708,25 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             self.draw_settings_menu()
 
         pg.display.flip()
+
+    def draw_level_select_menu(self):
+        # level select is intentionally simple: one highlighted row and basic controls
+        self.screen.fill(BLACK)
+        self.draw_text("LEVEL SELECT", 56, WHITE, WIDTH / 2, HEIGHT / 8)
+
+        # center the level list vertically enough to leave room for instructions at the bottom
+        start_y = HEIGHT / 4
+        row_spacing = 34
+        for index, level_name in enumerate(self.levels):
+            # yellow marks the level that will load if ENTER is pressed
+            color = YELLOW if index == self.level_select_index else WHITE
+            label = f"Level {index + 1}: {level_name}"
+            self.draw_text(label, 28, color, WIDTH / 2, start_y + index * row_spacing)
+
+        # instructions match the rest of the menu controls: arrows move, enter selects, escape backs out
+        self.draw_text("UP/DOWN to choose", 22, WHITE, WIDTH / 2, HEIGHT - 100)
+        self.draw_text("ENTER to start selected level", 22, WHITE, WIDTH / 2, HEIGHT - 70)
+        self.draw_text("ESC to return to title", 22, WHITE, WIDTH / 2, HEIGHT - 40)
 
     def key_name_for(self, action):
         # special keys get custom labels so the settings screen says ENTER instead of RETURN, etc.
@@ -789,15 +847,14 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
         # keybind rows are compact so the controls guide can stay readable at the bottom
         keybind_start_y = HEIGHT / 4 + 150
-        keybind_spacing = 25
+        keybind_spacing = 22
         for index, action in enumerate(self.rebindable_actions):
             # menu_index accounts for the two volume rows before the keybind rows
             menu_index = index + 2
             label = self.keybind_labels[action]
             option = f"{label}: {self.key_name_for(action)}"
             color = YELLOW if menu_index == self.settings_selected else WHITE
-            self.draw_text(option, 22, color, WIDTH / 2, keybind_start_y + index * keybind_spacing)
-
+            self.draw_text(option, 20, color, WIDTH / 2, keybind_start_y + index * keybind_spacing)
         if self.rebinding_action is not None:
             # this message sits above the controls guide so it does not overlap the settings list
             label = self.keybind_labels[self.rebinding_action]

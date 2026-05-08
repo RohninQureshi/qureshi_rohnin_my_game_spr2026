@@ -222,18 +222,24 @@ class GameWonState(State):
 
 
 class GameLevelSelectState(State):
-    def  __init__(self):
-        super().__init__()
+    def  __init__(self, game):
+        # stores the main Game object so the menu can read levels and choose one to load
+        self.game = game
     
     def get_state_name(self):
-        return super().get_state_name()
+        # level_select is the game-flow state used by the level selection menu
+        return "level_select"
     
     def enter(self):
-        return super().enter()
+        # level select freezes gameplay and starts highlighted on the current level
+        self.game.playing = False
+        self.game.level_select_index = self.game.current_level_index
     
     def exit(self):
-        return super().exit()
+        # selecting or leaving the menu needs no cleanup because input handling does the work
+        pass
     
     def update(self):
-        return super().update()
+        # level select is menu-only, so gameplay objects should not update here
+        pass
     
