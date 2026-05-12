@@ -1,10 +1,7 @@
 import pygame as pg
 from pygame.sprite import Sprite
-
 from settings import *
 from state_machine import StateMachine, State
-
-
 vec = pg.math.Vector2
 
 
@@ -76,7 +73,9 @@ class BaseBoss(Sprite):
             self.set_display_color(self.hit_flash_color)
 
     def die(self):
-        # defeating any boss should at least spawn particles, remove the sprite, and trigger the win/next state
+        # defeating any boss should spawn particles and remove the sprite immediately
         self.game.spawn_hit_particles(self.rect.center, self.default_color, 45)
         self.kill()
-        self.game.state_machine.transition("game_won")
+        # defer the level transition until GamePlayingState finishes updating sprites
+        # rebuilding the level from inside a sprite update can mutate groups while pygame is iterating them
+        self.game.boss_defeated = True

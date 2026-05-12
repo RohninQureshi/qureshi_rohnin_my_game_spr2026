@@ -1,4 +1,5 @@
 from bosses.sentinel_boss import SentinelBoss
+from bosses.warden_boss import WardenBoss
 
 
 # Each map character in this table represents a boss spawn.
@@ -7,8 +8,10 @@ from bosses.sentinel_boss import SentinelBoss
 # self-contained: boss classes, shared boss code, and boss spawning rules all live
 # together in one place.
 # When boss 2 exists, add another entry such as:
-#     "R": RiftWardenBoss,
+#     "S: SentinelBoss,
 # and the level loader will automatically know how to spawn it.
 BOSS_SPAWN_TABLE = {
     "S": SentinelBoss,
+    # H stands for Hive/Warden so W can remain the weapon-upgrade tile.
+    "H": WardenBoss,
 }

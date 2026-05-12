@@ -21,64 +21,11 @@ https://incompetech.com/music/royalty-free/
 
 
 
-Target for May 17:
-
-Polish Sentinel completely
-Make the ground pound, warning column, dash/upward dash, damage, health, and arena feel fair and intentional.
-
-Add one new boss using current architecture
-Give it:
-
-bosses/new_boss.py
-states/new_boss_states.py
-boss_registry.py entry
-a level tile
-2 attack patterns
-clear warning visuals
-Improve the normal levels leading into bosses
-Add better pickup placement, ammo pressure, armor/weapon rewards, and platforming that prepares the player for the boss mechanics.
-
-Do one mob improvement
-Either smarter chase behavior or simple pathfinding.  No full complicated A* unless the rest is stable.
-
-Final polish
-Clean comments, remove __pycache__, test save/load, settings, game over, win screen, and make sure GitHub is clean.
-
-
-Boss 2 was not fully locked in yet, but based on boss-skill plan, the best role for Boss 2 should be:
-
-Main skill: target priority / crowd control
-Secondary skill: movement
-
-
-Why:
-- Sentinel already tests reaction + dash movement.
-- Boss 2 should not just be “Sentinel but different.”
-- Adding mobs/summons or multiple threats forces the player to decide what to shoot first.
-- Movement still matters because the player has to dodge while managing enemies.
-
-Good Boss 2 concept:
-
-
-The Warden
-
-
-Tests:
-- Target priority
-- Crowd control
-- Ammo management
-- Movement under pressure
-
-Attacks:
-- Summons small mobs.
-- Fires slow projectiles.
-- Creates danger zones that force the player to move.
-- Maybe becomes vulnerable after summons are cleared.
 
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-05-08 09:12:45'
+__updated__ = '2026-05-11 01:31:56'
 
 
 import pygame as pg
@@ -417,6 +364,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # damage numbers are lightweight dictionaries because they only need text, position, and age
         self.damage_numbers = []
         self.boss = None
+        # boss death is handled after sprite updates finish so level rebuilds happen safely
+        self.boss_defeated = False
         
         self.camera = Camera(self.map.width, self.map.height) #Actually instanciates the  camera
         

@@ -30,6 +30,13 @@ class GamePlayingState(State):
             # camera follows the player only during active gameplay
             self.game.camera.update(self.game.player)
 
+        if self.game.boss_defeated:
+            # boss death is resolved here instead of inside BaseBoss.die()
+            # this avoids rebuilding levels while pygame is still updating a sprite group
+            self.game.boss_defeated = False
+            self.game.state_machine.transition("level_clear")
+            return
+
         # player projectiles now deal damage to mobs instead of deleting them directly
         # projectiles still disappear on hit so one shot cannot pierce through several enemies
         mob_projectile_hits = pg.sprite.groupcollide(self.game.all_mobs, self.game.all_projectiles, False, True)
@@ -45,9 +52,16 @@ class GamePlayingState(State):
         for boss, projectiles in boss_hits.items():
             # multiply by hit count so several projectiles in one frame still all count
             damage = self.game.player.weapon_damage * len(projectiles)
+            old_health = boss.health
             boss.take_damage(damage)
-            self.game.add_damage_number(boss.rect.center, damage, YELLOW)
-            self.game.spawn_hit_particles(boss.rect.center, (255, 120, 0), 10)
+            actual_damage = old_health - boss.health
+            if actual_damage > 0:
+                self.game.add_damage_number(boss.rect.center, actual_damage, YELLOW)
+                self.game.spawn_hit_particles(boss.rect.center, (255, 120, 0), 10)
+            else:
+                # shielded bosses can block shots without needing special cases for each boss name
+                self.game.add_damage_number(boss.rect.center, "BLOCKED", BLUE)
+                self.game.spawn_hit_particles(boss.rect.center, BLUE, 5)
 
         # touching a mob damages the player, but a cooldown prevents instant health deletion
         mob_contact_hits = pg.sprite.spritecollide(self.game.player, self.game.all_mobs, False)
@@ -64,12 +78,16 @@ class GamePlayingState(State):
 
         # boss body contact uses its own cooldown so the player is not deleted instantly
         boss_body_hits = pg.sprite.spritecollide(self.game.player, self.game.all_bosses, False)
-        if boss_body_hits and self.game.boss_damage_cd.ready():
+        if boss_body_hits:
             # read contact damage from the boss object so future bosses can hit harder or softer without new branches
-            damage = self.game.damage_player(boss_body_hits[0].contact_damage)
-            self.game.add_damage_number(self.game.player.rect.center, damage, RED)
-            self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
-            self.game.boss_damage_cd.start()
+            # the shared timer uses the active boss's cooldown so different bosses can tune contact damage timing
+            boss = boss_body_hits[0]
+            self.game.boss_damage_cd.time = boss.contact_cooldown
+            if self.game.boss_damage_cd.ready():
+                damage = self.game.damage_player(boss.contact_damage)
+                self.game.add_damage_number(self.game.player.rect.center, damage, RED)
+                self.game.spawn_hit_particles(self.game.player.rect.center, RED, 8)
+                self.game.boss_damage_cd.start()
 
         # boss projectiles damage the player and disappear when they hit
         boss_projectile_hits = pg.sprite.spritecollide(self.game.player, self.game.all_boss_projectiles, True)
