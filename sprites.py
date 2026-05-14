@@ -97,6 +97,8 @@ class Player(Sprite):
         self.dash_start_time = 0
         # dash_dir is a vector so dash can move horizontally or upward depending on input
         self.dash_dir = vec(1, 0)
+        # ground_pounding tracks a downward dash until it actually collides with the floor
+        self.ground_pounding = False
         self.sprint_start_time = 0
         # sprint particles use their own timer so the dust trail does not spawn every frame
         self.last_sprint_particle_time = 0
@@ -258,15 +260,22 @@ class Player(Sprite):
         self.dash_start_time = pg.time.get_ticks()
         self.dash_cd.start()
 
-        if self.aim_up_pressed:
+        if self.down_pressed:
+            # holding Down while dashing turns dash into a vertical slam toward the floor
+            self.dash_dir = vec(0, 1)
+            self.ground_pounding = True
+        elif self.aim_up_pressed:
             # holding Aim Up while pressing dash turns the burst into a vertical escape option
             self.dash_dir = vec(0, -1)
+            self.ground_pounding = False
         elif self.move_dir != 0:
             # live horizontal input decides dash direction when the player is actively moving
             self.dash_dir = vec(1 if self.move_dir > 0 else -1, 0)
+            self.ground_pounding = False
         else:
             # standing still uses the last faced direction so dash remains available without movement input
             self.dash_dir = vec(self.facing_dir, 0)
+            self.ground_pounding = False
 
     def stop_dash(self):
         # leaving dash only clears dash-specific flags because the next movement state sets the rest
@@ -340,6 +349,9 @@ class Player(Sprite):
         fall_speed = self.vel.y
         collide_with_walls(self, self.game.all_walls, 'y') #loading collide with walls for y
         self.rect.center = self.hit_rect.center # centering hitbox again to the regular visual center
+        if self.ground_pounding and self.on_ground and fall_speed > 0:
+            # ground pound resolves after vertical collision so the impact happens exactly when the floor stops the player
+            self.perform_ground_pound()
         self.spawn_movement_particles(was_on_ground, fall_speed)
         self.animate()
 
@@ -363,6 +375,19 @@ class Player(Sprite):
                 self.game.spawn_hit_particles(powerup.rect.center, powerup.color, 14)
             self.game.pickup_snd.play()
             self.game.store_player_progression()
+
+    def perform_ground_pound(self):
+        # this method is called once when a downward dash lands, then ground_pounding is cleared
+        # it is a mobility bounce, not an attack, so it does not damage mobs or bosses
+        self.ground_pounding = False
+        # end the dash immediately so next frame's dash logic cannot overwrite the upward bounce velocity
+        self.dashing = False
+        impact_pos = vec(self.rect.midbottom)
+        self.game.spawn_hit_particles(impact_pos, WHITE, 28)
+        # no text is shown here because the movement itself is the feedback
+        # the bounce velocity is between jump strength and upward dash strength for controlled platforming
+        self.vel.y = GROUND_POUND_BOUNCE_VELOCITY
+        self.on_ground = False
 
     def spawn_movement_particles(self, was_on_ground, fall_speed):
         # landing dust only appears after a real fall so small slopes or tiny bumps stay quiet

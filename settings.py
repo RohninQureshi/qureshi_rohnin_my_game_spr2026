@@ -41,6 +41,8 @@ SPRINT_RESET_TIME = 10000
 DASH_SPEED = 900
 DASH_DURATION = 140
 DASH_COOLDOWN = 3000
+# ground pound is a movement bounce: stronger than jump, weaker than an upward dash
+GROUND_POUND_BOUNCE_VELOCITY = -850
 # gravity and jump velocity control the basic platforming feel
 GRAVITY = 1800
 JUMP_VELOCITY = -700
