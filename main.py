@@ -22,10 +22,9 @@ https://incompetech.com/music/royalty-free/
 
 
 
-
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-05-17 14:54:43'
+__updated__ = '2026-05-17 21:08:31'
 
 
 import pygame as pg
@@ -178,10 +177,12 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "collected_powerups": sorted(self.collected_powerups),
         }
 
-    def save_progress(self):
+    def save_progress(self, store_live_player=True):
         # writes a new timestamped save file, then removes older extras
         # copy live player stats first so closing mid-level saves current ammo, armor, and damage
-        self.store_player_progression()
+        # this can be disabled from menus so a default title-screen player does not overwrite real progress
+        if store_live_player:
+            self.store_player_progression()
         # ensure the folder exists before trying to open a save path inside it
         self.ensure_save_dir()
         # timestamp makes each save file unique and easy to sort by date
@@ -197,8 +198,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
     def quit_game(self):
         # one quit helper keeps window close and Escape from having different save behavior
-        # saving here means normal exits remember the latest level, settings, keybinds, and progression
-        self.save_progress()
+        # title quit still writes a save, but it does not copy stats from a possibly default title-screen player
+        current_state = self.state_machine.current_state.get_state_name()
+        self.save_progress(store_live_player=current_state != "start")
 
         # stop the inner gameplay loop first, then stop the outer application loop
         if self.playing:
@@ -217,7 +219,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
         # on a fresh run there may be no saves yet, so just keep the default level index
         if not save_files:
-            return
+            return False
 
         # the newest file becomes the restore target
         latest_save = max(save_files, key=path.getmtime)
@@ -253,6 +255,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
 
         # apply restored volume values to the already-loaded pygame sound objects
         self.apply_audio_settings()
+        return True
 
     def prune_old_saves(self, keep_count=3):
         # keeps only the newest save files so disk usage does not grow forever
@@ -313,10 +316,11 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         # collected pickup IDs reset with a fresh run so the player can replay from the beginning cleanly
         self.collected_powerups = set()
 
-    def get_powerup_id(self, col, row, letter):
+    def get_powerup_id(self, col, row, letter, level_name=None):
         # level name + tile letter + tile coordinates uniquely identify one placed pickup
         # this avoids storing live sprite objects in the save file
-        level_name = self.levels[self.current_level_index]
+        if level_name is None:
+            level_name = self.levels[self.current_level_index]
         return f"{level_name}:{letter}:{col}:{row}"
 
     def is_powerup_collected(self, col, row, letter):
@@ -345,10 +349,16 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             # bump the index first so load_current_level reads the next map file
             self.current_level_index += 1
             self.load_current_level()
+            # save after changing levels so reopening starts from the newly reached level with current upgrades
+            self.save_progress(store_live_player=False)
             # rebuild all sprite groups from the new map before resuming play
             self.new()
+            # save once more after the new level is built so level-entry state is also recorded
+            self.save_progress()
             self.state_machine.transition("playing")
         else:
+            # final win still saves the player's latest progression before leaving gameplay
+            self.save_progress()
             # if there is no next level left, hand off to the win screen state
             self.state_machine.transition("game_won")
 
@@ -394,7 +404,7 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                 # tile_registry.py owns what each normal level character means
                 # this keeps main.py focused on loading the map instead of knowing every object class
                 if tile in TILE_SPAWN_TABLE:
-                    TILE_SPAWN_TABLE[tile](self, col, row)
+                    TILE_SPAWN_TABLE[tile](self, col, row, tile)
                 elif tile in BOSS_SPAWN_TABLE:
                     # boss letters stay in the boss registry because each boss has its own module and states
                     spawn_boss(self, col, row, tile)
@@ -449,6 +459,10 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         # escape still acts as a quit shortcut from the title screen
                         self.quit_game()
                     elif event.key == pg.K_RETURN:
+                        # start screen reloads the newest save before play so saved pickups and upgrades apply in-session
+                        if self.load_latest_save():
+                            self.load_current_level()
+                            self.new()
                         # start screen always uses Enter, even if Enter is rebound to another action
                         self.state_machine.transition("playing")
                     elif event.key == pg.K_l:
@@ -471,9 +485,14 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
                         # wrap downward for the same reason as UP
                         self.level_select_index = (self.level_select_index + 1) % len(self.levels)
                     elif event.key == pg.K_RETURN:
-                        # selecting a level starts a fresh run from that level
-                        self.current_level_index = self.level_select_index
-                        self.reset_player_progression()
+                        # selecting a level keeps the saved run data but changes which level is loaded
+                        # this lets saved upgrades and collected pickups still apply through level select
+                        selected_level_index = self.level_select_index
+                        loaded_save = self.load_latest_save()
+                        self.current_level_index = selected_level_index
+                        if not loaded_save:
+                            # if no save exists yet, fall back to clean starting stats
+                            self.reset_player_progression()
                         self.load_current_level()
                         self.new()
                         self.state_machine.transition("playing")

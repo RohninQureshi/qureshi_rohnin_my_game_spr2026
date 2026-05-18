@@ -6,41 +6,41 @@ from sprites import AmmoPickup, ArmorPickup, Coin, Mob, Player, Wall, WeaponPick
 # main.py still loops through the map, but this registry decides what each tile letter means.
 
 
-def spawn_wall(game, col, row):
+def spawn_wall(game, col, row, tile=None):
     # walls only need to exist in the wall/sprite groups, so they do not need to be stored on game
     Wall(game, col, row)
 
 
-def spawn_player(game, col, row):
+def spawn_player(game, col, row, tile=None):
     # game.player is stored because camera, collision, saving, and combat all need the active player
     game.player = Player(game, col, row)
 
 
-def spawn_mob(game, col, row):
+def spawn_mob(game, col, row, tile=None):
     # mobs add themselves to sprite groups, but this keeps the old game.mob reference available
     game.mob = Mob(game, col, row)
 
 
-def spawn_coin(game, col, row):
+def spawn_coin(game, col, row, tile=None):
     # coins add themselves to coin and sprite groups inside the Coin class
     game.coin = Coin(game, col, row)
 
 
-def spawn_armor(game, col, row):
+def spawn_armor(game, col, row, tile=None):
     # armor pickups increase damage reduction when collected by the player
-    if not game.is_powerup_collected(col, row, "A"):
+    if not game.is_powerup_collected(col, row, tile):
         ArmorPickup(game, col, row)
 
 
-def spawn_weapon(game, col, row):
+def spawn_weapon(game, col, row, tile=None):
     # weapon pickups increase projectile damage when collected by the player
-    if not game.is_powerup_collected(col, row, "W"):
+    if not game.is_powerup_collected(col, row, tile):
         WeaponPickup(game, col, row)
 
 
-def spawn_ammo(game, col, row):
+def spawn_ammo(game, col, row, tile=None):
     # ammo pickups refill shots without resetting ammo between levels
-    if not game.is_powerup_collected(col, row, "B"):
+    if not game.is_powerup_collected(col, row, tile):
         AmmoPickup(game, col, row)
 
 
