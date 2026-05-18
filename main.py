@@ -25,7 +25,7 @@ https://incompetech.com/music/royalty-free/
 
 """
 #Date of Last Update 24hr time
-__updated__ = '2026-05-11 01:31:56'
+__updated__ = '2026-05-17 14:54:43'
 
 
 import pygame as pg
@@ -174,6 +174,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
             "player_weapon_damage": self.player_weapon_damage,
             "player_max_ammo": self.player_max_ammo,
             "player_ammo": self.player_ammo,
+            # collected powerups are saved by level/tile position so upgrades cannot be farmed by reloading
+            "collected_powerups": sorted(self.collected_powerups),
         }
 
     def save_progress(self):
@@ -246,6 +248,8 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.player_weapon_damage = data.get("player_weapon_damage", self.player_weapon_damage)
         self.player_max_ammo = data.get("player_max_ammo", self.player_max_ammo)
         self.player_ammo = min(data.get("player_ammo", self.player_ammo), self.player_max_ammo)
+        # JSON stores sets as lists, so convert back to a set for quick lookup while loading levels
+        self.collected_powerups = set(data.get("collected_powerups", []))
 
         # apply restored volume values to the already-loaded pygame sound objects
         self.apply_audio_settings()
@@ -306,6 +310,22 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         self.player_weapon_damage = PLAYER_STARTING_WEAPON_DAMAGE
         self.player_max_ammo = PLAYER_MAX_AMMO
         self.player_ammo = PLAYER_MAX_AMMO
+        # collected pickup IDs reset with a fresh run so the player can replay from the beginning cleanly
+        self.collected_powerups = set()
+
+    def get_powerup_id(self, col, row, letter):
+        # level name + tile letter + tile coordinates uniquely identify one placed pickup
+        # this avoids storing live sprite objects in the save file
+        level_name = self.levels[self.current_level_index]
+        return f"{level_name}:{letter}:{col}:{row}"
+
+    def is_powerup_collected(self, col, row, letter):
+        # tile_registry.py calls this before spawning a pickup from the level text
+        return self.get_powerup_id(col, row, letter) in self.collected_powerups
+
+    def mark_powerup_collected(self, powerup):
+        # powerup objects remember their map tile, so collection can be saved permanently for this run
+        self.collected_powerups.add(powerup.pickup_id)
 
     def store_player_progression(self):
         # copy current player stats back to Game before rebuilding the level sprites

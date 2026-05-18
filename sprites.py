@@ -372,9 +372,13 @@ class Player(Sprite):
             # apply() is polymorphic: each pickup class decides which stat it changes
             for powerup in p_hits:
                 powerup.apply(self)
+                # mark the exact level tile as collected so it will not respawn after save/load
+                self.game.mark_powerup_collected(powerup)
                 self.game.spawn_hit_particles(powerup.rect.center, powerup.color, 14)
             self.game.pickup_snd.play()
             self.game.store_player_progression()
+            # save immediately so collected upgrades cannot be farmed by closing before the next normal save
+            self.game.save_progress()
 
     def perform_ground_pound(self):
         # this method is called once when a downward dash lands, then ground_pounding is cleared
@@ -581,6 +585,8 @@ class Powerup(Sprite):
         self.game = game
         self.color = color
         self.letter = letter
+        # save identity uses the original tile location, not the moving rect position
+        self.pickup_id = game.get_powerup_id(x, y, letter)
         self.image = pg.Surface((TILESIZE, TILESIZE))
         self.image.fill(color)
         self.draw_letter()

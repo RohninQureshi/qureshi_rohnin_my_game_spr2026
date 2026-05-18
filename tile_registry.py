@@ -28,17 +28,20 @@ def spawn_coin(game, col, row):
 
 def spawn_armor(game, col, row):
     # armor pickups increase damage reduction when collected by the player
-    ArmorPickup(game, col, row)
+    if not game.is_powerup_collected(col, row, "A"):
+        ArmorPickup(game, col, row)
 
 
 def spawn_weapon(game, col, row):
     # weapon pickups increase projectile damage when collected by the player
-    WeaponPickup(game, col, row)
+    if not game.is_powerup_collected(col, row, "W"):
+        WeaponPickup(game, col, row)
 
 
 def spawn_ammo(game, col, row):
     # ammo pickups refill shots without resetting ammo between levels
-    AmmoPickup(game, col, row)
+    if not game.is_powerup_collected(col, row, "B"):
+        AmmoPickup(game, col, row)
 
 
 def spawn_boss(game, col, row, tile):
