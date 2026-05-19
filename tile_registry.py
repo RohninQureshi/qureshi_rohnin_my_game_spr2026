@@ -39,9 +39,8 @@ def spawn_weapon(game, col, row, tile=None):
 
 
 def spawn_ammo(game, col, row, tile=None):
-    # ammo pickups refill shots without resetting ammo between levels
-    if not game.is_powerup_collected(col, row, tile):
-        AmmoPickup(game, col, row)
+    # ammo pickups are refills, not permanent upgrades, so they always respawn and are not saved as collected
+    AmmoPickup(game, col, row)
 
 
 def spawn_boss(game, col, row, tile):

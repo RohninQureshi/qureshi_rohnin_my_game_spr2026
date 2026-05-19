@@ -327,6 +327,9 @@ class Game:  # "The pen factory", all products are "products", not also the "fac
         return self.get_powerup_id(col, row, letter) in self.collected_powerups
 
     def mark_powerup_collected(self, powerup):
+        # ammo boxes are temporary refills, so only permanent upgrade pickups are stored in the save file
+        if powerup.letter == "B":
+            return
         # powerup objects remember their map tile, so collection can be saved permanently for this run
         self.collected_powerups.add(powerup.pickup_id)
 
