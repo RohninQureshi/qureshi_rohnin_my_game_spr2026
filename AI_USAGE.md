@@ -29,3 +29,7 @@ AI was used to help with:
 ## Note
 
 AI was used as a helper, not as a replacement for understanding the project. It did not complete the project for me or act as an employee coding the game independently. The final project structure, gameplay choices, and code were reviewed, tested, and accepted by me.
+
+## Sources
+
+-Refer to SOURCES.md
